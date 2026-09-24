@@ -23,8 +23,8 @@ st.markdown("Módulo estacional para la captura y consolidación de la precipita
 URL_LOGIN = "https://redmet.icc.org.gt/login"
 URL_DATA_API = "https://redmet.icc.org.gt/redmet/comparativas"
 
-USUARIO_WS = "webservice.insivumeh@icc.org.gt"
-CONTRASENA_WS = "WebService"
+USUARIO_WS = st.secrets["ICC_USUARIO"]
+CONTRASENA_WS = st.secrets["ICC_PASS"]
 
 # --- CORRECCIÓN DE ZONA HORARIA EN EL SERVIDOR (HORA DE GUATEMALA UTC-6) ---
 tz_guatemala = ZoneInfo("America/Guatemala")
