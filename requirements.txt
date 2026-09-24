@@ -1,0 +1,10 @@
+streamlit
+pandas
+numpy
+openpyxl
+geopandas
+matplotlib
+contextily
+scipy
+beautifulsoup4
+lxml
