@@ -21,8 +21,8 @@ st.markdown("Esta herramienta realiza la autenticación automática en el portal
 URL_LOGIN = "https://redmet.icc.org.gt/login"
 URL_DATA_API = "https://redmet.icc.org.gt/redmet/comparativas"
 
-USUARIO_WS = st.secrets["ICC_USUARIO"]
-CONTRASENA_WS = st.secrets["ICC_PASS"]
+USUARIO_WS = st.secrets["CLIMAUSER"]
+CONTRASENA_WS = st.secrets["CLIMACON"]
 
 # --- CÁLCULO DINÁMICO DE FECHAS ---
 ahora = datetime.now()
