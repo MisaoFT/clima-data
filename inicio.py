@@ -9,6 +9,14 @@ portada = st.Page(
     icon="🌍", 
     default=True
 )
+ocultar_estilo = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+"""
+st.markdown(ocultar_estilo, unsafe_allow_html=True)
 
 # Bloque: Extracciones Parciales Estacionales
 dato_icc_7_13 = st.Page(
