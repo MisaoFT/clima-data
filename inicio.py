@@ -11,7 +11,6 @@ portada = st.Page(
 )
 ocultar_estilo = """
     <style>
-    #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     </style>
