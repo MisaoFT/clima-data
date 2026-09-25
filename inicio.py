@@ -12,7 +12,6 @@ portada = st.Page(
 ocultar_estilo = """
     <style>
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     </style>
 """
 st.markdown(ocultar_estilo, unsafe_allow_html=True)
