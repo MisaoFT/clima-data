@@ -5,13 +5,15 @@ import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Control de Calidad Meteorológico", page_icon="⚠️", layout="wide"
+    page_title="Control de Calidad y Consolidado Kobo",
+    page_icon="🌤️",
+    layout="wide",
 )
 
-st.title("⚠️ Panel de Control de Calidad y Alertas Meteorológicas")
+st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica")
 st.markdown(
-    "Sube tus archivos de KoboToolbox para auditar y mostrar exclusivamente las"
-    " alertas de temperatura y precipitación."
+    "Sube tus archivos de KoboToolbox para visualizar las alertas de"
+    " temperatura y lluvia, y descarga el archivo consolidado."
 )
 
 # Panel lateral
@@ -42,8 +44,8 @@ if uploaded_files:
   st.sidebar.write(f"- **Sinópticas:** {file_sino.name if file_sino else '❌'}")
 
   if file_auto and file_clim and file_sino:
-    if st.button("🔍 Ejecutar Auditoría de Calidad"):
-      with st.spinner("Analizando datos y buscando anomalías..."):
+    if st.button("🚀 Procesar Datos y Generar Reporte"):
+      with st.spinner("Procesando archivos y ejecutando control de calidad..."):
 
         # ==========================================
         # FUNCIÓN DE LECTURA Y RESCATE DE FECHA
@@ -188,11 +190,75 @@ if uploaded_files:
         df_unificado["fecha_str"] = df_unificado["fecha_dt"].apply(fmt_fecha)
 
         # ==========================================
-        # FILTRADO Y MUESTRA EXCLUSIVA DE ALERTAS
+        # CONSOLIDACIÓN FINAL (PARA DESCARGA)
         # ==========================================
-        st.subheader("🚨 Reporte Detallado de Anomalías")
+        registros_consolidados = []
+        grupos = df_unificado.groupby(["estacion_std", "fecha_dt"], dropna=False)
 
-        # 1. Inconsistencias Físicas Horarias
+        for (estacion, fecha), group in grupos:
+          t_07 = group[group["hora_std"] == "07:00"]["tseca"].values
+          t_13 = group[group["hora_std"] == "13:00"]["tseca"].values
+          t_18 = group[group["hora_std"] == "18:00"]["tseca"].values
+
+          val_07 = (
+              t_07[0] if len(t_07) > 0 and pd.notnull(t_07[0]) else None
+          )
+          val_13 = (
+              t_13[0] if len(t_13) > 0 and pd.notnull(t_13[0]) else None
+          )
+          val_18 = (
+              t_18[0] if len(t_18) > 0 and pd.notnull(t_18[0]) else None
+          )
+
+          if (
+              val_07 is not None
+              and val_13 is not None
+              and val_18 is not None
+          ):
+            tmed = round((val_07 + val_13 + val_18) / 3.0, 1)
+          else:
+            tmed = np.nan
+
+          tmin_dia = group["tmin"].min()
+          tmax_dia = group["tmax"].max()
+          lluvia_total = group["lluvia"].sum(min_count=1)
+
+          registros_consolidados.append({
+              "Estacion": estacion,
+              "Fecha": fmt_fecha(fecha),
+              "TMED": tmed,
+              "TMIN": tmin_dia if pd.notnull(tmin_dia) else np.nan,
+              "TMAX": tmax_dia if pd.notnull(tmax_dia) else np.nan,
+              "LLUVIA_ACUM": (
+                  lluvia_total if pd.notnull(lluvia_total) else np.nan
+              ),
+          })
+
+        df_consolidado = pd.DataFrame(registros_consolidados)
+
+        # Generar Excel en memoria para descarga inmediata
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+          df_consolidado.to_excel(writer, index=False, sheet_name="Consolidado")
+        excel_data = output.getvalue()
+
+        # Botón de descarga principal bien visible arriba
+        st.success("✅ ¡Procesamiento completado con éxito!")
+        st.download_button(
+            label="📥 Descargar Archivo Excel Consolidado",
+            data=excel_data,
+            file_name="consolidado_kobo_valido.xlsx",
+            mime=(
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            ),
+            use_container_width=True,
+        )
+
+        # ==========================================
+        # REPORTE DE ALERTAS Y ANOMALÍAS
+        # ==========================================
+        st.subheader("🚨 Reporte Detallado de Control de Calidad")
+
         inc_tmin = df_unificado[
             (df_unificado["tmin"].notnull())
             & (df_unificado["tseca"].notnull())
@@ -203,8 +269,6 @@ if uploaded_files:
             & (df_unificado["tseca"].notnull())
             & (df_unificado["tmax"] <= df_unificado["tseca"])
         ]
-
-        # 2. Valores Extremos
         ex_lluvia = df_unificado[df_unificado["lluvia"] > 40]
         ex_tmax = df_unificado[df_unificado["tmax"] > 42]
         ex_tmin = df_unificado[df_unificado["tmin"] < 0]
@@ -218,7 +282,6 @@ if uploaded_files:
               len(inc_tmin) + len(inc_tmax) + len(ex_tmax) + len(ex_tmin),
           )
 
-        # Despliegue en expanders dedicados
         with st.expander(
             f"⚠️ Inconsistencias Físicas: Tmin >= Tseca ({len(inc_tmin)} casos)",
             expanded=True,
@@ -302,5 +365,5 @@ if uploaded_files:
 else:
   st.info(
       "👈 Comienza subiendo tus archivos CSV en el panel lateral para"
-      " habilitar la auditoría de control de calidad."
+      " habilitar la auditoría y descarga."
   )
