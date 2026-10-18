@@ -5,18 +5,19 @@ import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Considador Meteorológico Kobo", page_icon="🌤️", layout="wide"
+    page_title="Control de Calidad Meteorológico", page_icon="⚠️", layout="wide"
 )
 
-st.title("🌤️ Considador y Validador de Datos Meteorológicos - KoboToolbox")
+st.title("⚠️ Panel de Control de Calidad y Alertas Meteorológicas")
 st.markdown(
-    "Sube tus tres archivos CSV (*Automáticas*, *Climáticas Convencionales* y *Sinópticas*) para generar el consolidado diario validado."
+    "Sube tus archivos de KoboToolbox para auditar y mostrar exclusivamente las"
+    " alertas de temperatura y precipitación."
 )
 
-# Panel lateral para la carga de archivos
+# Panel lateral
 st.sidebar.header("📁 Carga de Archivos CSV")
 uploaded_files = st.sidebar.file_uploader(
-    "Selecciona o arrastra tus archivos de Kobo",
+    "Selecciona tus archivos de Kobo",
     type=["csv"],
     accept_multiple_files=True,
 )
@@ -41,8 +42,8 @@ if uploaded_files:
   st.sidebar.write(f"- **Sinópticas:** {file_sino.name if file_sino else '❌'}")
 
   if file_auto and file_clim and file_sino:
-    if st.button("🚀 Procesar y Consolidar Datos"):
-      with st.spinner("Procesando archivos y aplicando control de calidad..."):
+    if st.button("🔍 Ejecutar Auditoría de Calidad"):
+      with st.spinner("Analizando datos y buscando anomalías..."):
 
         # ==========================================
         # FUNCIÓN DE LECTURA Y RESCATE DE FECHA
@@ -184,111 +185,115 @@ if uploaded_files:
         def fmt_fecha(dt):
           return dt.strftime("%Y-%m-%d") if pd.notnull(dt) else "Fecha Nula"
 
-        # ==========================================
-        # CONTROL DE CALIDAD Y ALERTAS
-        # ==========================================
-        st.subheader("📋 Informe de Control de Calidad y Alertas")
+        df_unificado["fecha_str"] = df_unificado["fecha_dt"].apply(fmt_fecha)
 
-        inconsistencia_tmin = df_unificado[
-            df_unificado["tmin"] >= df_unificado["tseca"]
+        # ==========================================
+        # FILTRADO Y MUESTRA EXCLUSIVA DE ALERTAS
+        # ==========================================
+        st.subheader("🚨 Reporte Detallado de Anomalías")
+
+        # 1. Inconsistencias Físicas Horarias
+        inc_tmin = df_unificado[
+            (df_unificado["tmin"].notnull())
+            & (df_unificado["tseca"].notnull())
+            & (df_unificado["tmin"] >= df_unificado["tseca"])
         ]
-        inconsistencia_tmax = df_unificado[
-            df_unificado["tmax"] <= df_unificado["tseca"]
+        inc_tmax = df_unificado[
+            (df_unificado["tmax"].notnull())
+            & (df_unificado["tseca"].notnull())
+            & (df_unificado["tmax"] <= df_unificado["tseca"])
         ]
-        lluvia_extrema = df_unificado[df_unificado["lluvia"] > 40]
-        tmax_extrema = df_unificado[df_unificado["tmax"] > 42]
-        tmin_extrema = df_unificado[df_unificado["tmin"] < 0]
 
-        total_alertas = (
-            len(inconsistencia_tmin)
-            + len(inconsistencia_tmax)
-            + len(lluvia_extrema)
-            + len(tmax_extrema)
-            + len(tmin_extrema)
-        )
+        # 2. Valores Extremos
+        ex_lluvia = df_unificado[df_unificado["lluvia"] > 40]
+        ex_tmax = df_unificado[df_unificado["tmax"] > 42]
+        ex_tmin = df_unificado[df_unificado["tmin"] < 0]
 
-        if total_alertas > 0:
-          st.warning(
-              f"Se detectaron {total_alertas} observaciones con posibles"
-              " inconsistencias físicas o valores extremos (informativo)."
-          )
-          if not lluvia_extrema.empty:
-            with st.expander("🌧️ Ver registros con Lluvia > 40 mm"):
-              st.dataframe(
-                  lluvia_extrema[[
-                      "estacion_std",
-                      "fecha_manual",
-                      "hora_std",
-                      "lluvia",
-                  ]]
-              )
-        else:
-          st.success("✅ No se detectaron alertas críticas en los datos.")
-
-        # ==========================================
-        # CONSOLIDACIÓN FINAL
-        # ==========================================
-        registros_consolidados = []
-        grupos = df_unificado.groupby(["estacion_std", "fecha_dt"], dropna=False)
-
-        for (estacion, fecha), group in grupos:
-          t_07 = group[group["hora_std"] == "07:00"]["tseca"].values
-          t_13 = group[group["hora_std"] == "13:00"]["tseca"].values
-          t_18 = group[group["hora_std"] == "18:00"]["tseca"].values
-
-          val_07 = (
-              t_07[0] if len(t_07) > 0 and pd.notnull(t_07[0]) else None
-          )
-          val_13 = (
-              t_13[0] if len(t_13) > 0 and pd.notnull(t_13[0]) else None
-          )
-          val_18 = (
-              t_18[0] if len(t_18) > 0 and pd.notnull(t_18[0]) else None
+        col1, col2 = st.columns(2)
+        with col1:
+          st.metric("Alertas de Lluvia (>40mm)", len(ex_lluvia))
+        with col2:
+          st.metric(
+              "Alertas de Temperatura (Inconsistencias/Extremas)",
+              len(inc_tmin) + len(inc_tmax) + len(ex_tmax) + len(ex_tmin),
           )
 
-          if (
-              val_07 is not None
-              and val_13 is not None
-              and val_18 is not None
-          ):
-            tmed = round((val_07 + val_13 + val_18) / 3.0, 1)
+        # Despliegue en expanders dedicados
+        with st.expander(
+            f"⚠️ Inconsistencias Físicas: Tmin >= Tseca ({len(inc_tmin)} casos)",
+            expanded=True,
+        ):
+          if not inc_tmin.empty:
+            st.dataframe(
+                inc_tmin[[
+                    "estacion_std",
+                    "fecha_str",
+                    "hora_std",
+                    "tmin",
+                    "tseca",
+                ]],
+                use_container_width=True,
+            )
           else:
-            tmed = np.nan
+            st.success("No hay registros con Tmin mayor o igual a Tseca.")
 
-          tmin_dia = group["tmin"].min()
-          tmax_dia = group["tmax"].max()
-          lluvia_total = group["lluvia"].sum(min_count=1)
+        with st.expander(
+            f"⚠️ Inconsistencias Físicas: Tmax <= Tseca ({len(inc_tmax)} casos)",
+            expanded=True,
+        ):
+          if not inc_tmax.empty:
+            st.dataframe(
+                inc_tmax[[
+                    "estacion_std",
+                    "fecha_str",
+                    "hora_std",
+                    "tmax",
+                    "tseca",
+                ]],
+                use_container_width=True,
+            )
+          else:
+            st.success("No hay registros con Tmax menor o igual a Tseca.")
 
-          registros_consolidados.append({
-              "Estacion": estacion,
-              "Fecha": fmt_fecha(fecha),
-              "TMED": tmed,
-              "TMIN": tmin_dia if pd.notnull(tmin_dia) else np.nan,
-              "TMAX": tmax_dia if pd.notnull(tmax_dia) else np.nan,
-              "LLUVIA_ACUM": (
-                  lluvia_total if pd.notnull(lluvia_total) else np.nan
-              ),
-          })
+        with st.expander(
+            f"🌧️ Lluvias Extremas (> 40 mm) ({len(ex_lluvia)} casos)",
+            expanded=True,
+        ):
+          if not ex_lluvia.empty:
+            st.dataframe(
+                ex_lluvia[["estacion_std", "fecha_str", "hora_std", "lluvia"]],
+                use_container_width=True,
+            )
+          else:
+            st.success("No hay registros de lluvia extrema.")
 
-        df_consolidado = pd.DataFrame(registros_consolidados)
+        with st.expander(
+            f"🔥 Temperaturas Máximas Extremas (> 42 °C) ({len(ex_tmax)} casos)",
+            expanded=True,
+        ):
+          if not ex_tmax.empty:
+            st.dataframe(
+                ex_tmax[["estacion_std", "fecha_str", "hora_std", "tmax"]],
+                use_container_width=True,
+            )
+          else:
+            st.success("No hay registros de temperaturas máximas extremas.")
 
-        st.subheader("📊 Vista Previa del Consolidado Diario")
-        st.dataframe(df_consolidado, use_container_width=True)
+        with st.expander(
+            f"❄️ Temperaturas Mínimas Extremas (< 0 °C) ({len(ex_tmin)} casos)",
+            expanded=True,
+        ):
+          if not ex_tmin.empty:
+            st.dataframe(
+                ex_tmin[["estacion_std", "fecha_str", "hora_std", "tmin"]],
+                use_container_width=True,
+            )
+          else:
+            st.success(
+                "No hay registros de temperaturas mínimas bajo el punto de"
+                " congelación."
+            )
 
-        # Generar Excel en memoria para descarga
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-          df_consolidado.to_excel(writer, index=False, sheet_name="Consolidado")
-        excel_data = output.getvalue()
-
-        st.download_button(
-            label="📥 Descargar Archivo Excel Consolidado",
-            data=excel_data,
-            file_name="consolidado_kobo_valido.xlsx",
-            mime=(
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ),
-        )
   else:
     st.info(
         "Por favor asegúrate de subir los tres archivos (Automáticas,"
@@ -297,5 +302,5 @@ if uploaded_files:
 else:
   st.info(
       "👈 Comienza subiendo tus archivos CSV en el panel lateral para"
-      " habilitar el procesamiento."
+      " habilitar la auditoría de control de calidad."
   )
