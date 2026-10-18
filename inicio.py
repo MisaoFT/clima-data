@@ -55,6 +55,12 @@ extraccion_diario = st.Page(
     icon="⚡"
 )
 
+# Bloque: Continuo Diario (¡Agregado correctamente!)
+extraccion_KOBO = st.Page(
+    "pages/7_Dato_diario_kobo_consolidar.py", 
+    title="Consolidación KOBOCOLLECT", 
+    icon="⚡"
+)
 
 # --- 2. CREACIÓN DE SUBCARPETAS INTELIGENTES EN EL MENÚ ---
 navegacion_sihm = st.navigation(
@@ -70,7 +76,8 @@ navegacion_sihm = st.navigation(
             mapa_parcial
         ],
         "📅 Monitoreo Continuo": [
-            extraccion_diario
+            extraccion_diario,
+            extraccion_KOBO
         ]
     }
 )
