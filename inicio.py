@@ -86,7 +86,7 @@ navegacion_sihm = st.navigation(
     {
         "Módulo Principal": [portada],
         "📅 Datos Diarios Preliminares": [
-            extraccion_diario_ICC
+            extraccion_diario_ICC,
             DD_extra,
             matriz_pivote
         ],  
