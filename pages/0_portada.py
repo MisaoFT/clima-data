@@ -1,7 +1,15 @@
 import streamlit as st
 
 # --- TÍTULO Y PRESENTACIÓN ---
-st.title("🌍 Sección de Climatología: Sistema Integrado de Herramientas Meteorológicas (SIHM)")
+st.markdown(
+    """
+    <h1 style='text-align: center; margin-bottom: 20px;'>
+        🌍 Sección de Climatología<br>
+        <span style='font-size: 0.85em; font-weight: normal;'>Sistema Integrado de Herramientas Meteorológicas (SIHM)</span>
+    </h1>
+    """, 
+    unsafe_allow_html=True
+)
 
 st.subheader("¡Bienvenida al centro de control de Datos Diarios Preliminares!")
 st.markdown("Utiliza el nuevo menú lateral izquierdo para acceder a las herramientas organizadas por categorías de procesamiento.")
