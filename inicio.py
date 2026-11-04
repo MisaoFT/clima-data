@@ -75,7 +75,7 @@ matriz_pivote = st.Page(
     icon="⚡"
 )
 # Bloque: Extraccion dato diario
-matriz_pivote = st.Page(
+DD_extra = st.Page(
     "pages/10_extraccion_kobo_dato_diario.py", 
     title="Extraccion de Kobo dato diario fenomenos corregidos", 
     icon="⚡"
@@ -98,7 +98,8 @@ navegacion_sihm = st.navigation(
             extraccion_diario,
             extraccion_KOBO,
             pruebas_Kobo,
-            matriz_pivote
+            matriz_pivote,
+            DD_extra
         ]
     }
 )
