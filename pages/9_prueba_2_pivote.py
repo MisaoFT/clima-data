@@ -1,5 +1,4 @@
 import io
-import math
 import unicodedata
 import numpy as np
 import pandas as pd
@@ -9,15 +8,15 @@ import streamlit as st
 # CONFIGURACIÓN DE LA PÁGINA
 # ==========================================
 st.set_page_config(
-    page_title="Control de Calidad, Consolidado y Matriz Kobo",
-    page_icon="🌤️",
+    page_title="Generador de Matriz Meteorológica INSIVUMEH",
+    page_icon="📊",
     layout="wide",
 )
 
-st.title("🌤️ Auditoría Meteorológica y Generación de Matriz Diaria (INSIVUMEH)")
+st.title("📊 Generador de Matriz Diaria Meteorológica (INSIVUMEH)")
 st.markdown(
-    "Procesa archivos de KoboToolbox o carga un archivo `consolidado_kobo_valido.xlsx` "
-    "previamente descargado para generar la matriz final pivotada `dato_diario_preliminar`."
+    "Sube tu archivo `consolidado_kobo_valido.xlsx` para transformarlo "
+    "en la matriz final pivotada `dato_diario_preliminar` con las 64 estaciones oficiales."
 )
 
 # Estructura oficial de 64 estaciones Insivumeh
@@ -106,7 +105,7 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame) -> pd.DataFra
         for col_orig, var_drive in MAPEO_VARIABLES.items():
             if col_orig in row and pd.notnull(row[col_orig]):
                 val = row[col_orig]
-                # Desplazamiento climatológico oficial: -1 día para lluvia observada a las 07:00
+                # Desplazamiento climatológico oficial: -1 día para lluvia observada a las 07:00 h
                 if var_drive == "LLUVIA":
                     fecha_aplicada = fecha_obs - pd.Timedelta(days=1)
                 else:
@@ -147,62 +146,54 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame) -> pd.DataFra
 
 
 # ==========================================
-# MENÚ LATERAL Y NAVEGACIÓN
+# CARGA DE ARCHIVO ÚNICA
 # ==========================================
-opcion = st.sidebar.radio(
-    "Selecciona la fuente de entrada:",
-    ["1. Procesar CSVs de KoboToolbox", "2. Subir Excel Consolidado (`consolidado_kobo_valido.xlsx`)"]
+st.sidebar.header("📁 Archivo de Entrada")
+file_excel = st.sidebar.file_uploader(
+    "Sube tu archivo Excel `consolidado_kobo_valido.xlsx`",
+    type=["xlsx", "xls"]
 )
 
-if opcion == "1. Procesar CSVs de KoboToolbox":
-    st.sidebar.header("📁 Archivos Kobo CSV")
-    uploaded_files = st.sidebar.file_uploader(
-        "Sube los archivos de Kobo (Automáticas, Climáticas, Sinópticas)",
-        type=["csv"],
-        accept_multiple_files=True
-    )
-
-    if uploaded_files:
-        # Purgas y procesamiento...
-        st.info("Utiliza los tres CSVs para consolidar los datos y luego convertirlos a matriz.")
-
-elif opcion == "2. Subir Excel Consolidado (`consolidado_kobo_valido.xlsx`)":
-    st.subheader("📤 Transformar Consolidado Previo a Matriz Drive")
-    file_excel = st.file_uploader("Sube tu archivo Excel `consolidado_kobo_valido.xlsx`", type=["xlsx", "xls"])
-
-    if file_excel:
+if file_excel:
+    with st.spinner("Leyendo archivo consolidado..."):
         df_cons = pd.read_excel(file_excel)
         st.success("¡Archivo cargado correctamente!")
-        st.write(f"Filas detectadas: {len(df_cons)}")
+        st.info(f"Registros encontrados: **{len(df_cons)}** filas.")
 
-        if st.button("📊 Generar Matriz Pivotada"):
-            matriz_final = transformar_consolidado_a_matriz(df_cons)
+        if st.button("🚀 Generar Matriz Pivotada"):
+            with st.spinner("Generando matriz de 64 estaciones y aplicando reglas climatológicas..."):
+                matriz_final = transformar_consolidado_a_matriz(df_cons)
 
-            st.success("✅ ¡Matriz `dato_diario_preliminar` generada exitosamente!")
-            st.dataframe(matriz_final.head(15), use_container_width=True)
+                st.success("✅ ¡Matriz `dato_diario_preliminar` generada exitosamente!")
+                st.subheader("📋 Vista Previa de la Matriz Generada")
+                st.dataframe(matriz_final.head(15), use_container_width=True)
 
-            # Generar CSV y Excel para descarga
-            csv_bytes = matriz_final.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
+                # Preparar descargas
+                csv_bytes = matriz_final.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
 
-            output_excel = io.BytesIO()
-            with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
-                matriz_final.to_excel(writer, index=False, sheet_name="Matriz_Drive")
-            excel_bytes = output_excel.getvalue()
+                output_excel = io.BytesIO()
+                with pd.ExcelWriter(output_excel, engine="openpyxl") as writer:
+                    matriz_final.to_excel(writer, index=False, sheet_name="Matriz_Drive")
+                excel_bytes = output_excel.getvalue()
 
-            col_d1, col_d2 = st.columns(2)
-            with col_d1:
-                st.download_button(
-                    label="📥 Descargar dato_diario_preliminar.csv",
-                    data=csv_bytes,
-                    file_name="dato_diario_preliminar.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
-            with col_d2:
-                st.download_button(
-                    label="📥 Descargar dato_diario_preliminar.xlsx",
-                    data=excel_bytes,
-                    file_name="dato_diario_preliminar.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=True
-                )
+                st.markdown("---")
+                st.subheader("📥 DESCARGAS DISPONIBLES")
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    st.download_button(
+                        label="📄 Descargar dato_diario_preliminar.csv",
+                        data=csv_bytes,
+                        file_name="dato_diario_preliminar.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                with col_d2:
+                    st.download_button(
+                        label="📊 Descargar dato_diario_preliminar.xlsx",
+                        data=excel_bytes,
+                        file_name="dato_diario_preliminar.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
+else:
+    st.info("👈 Por favor, sube tu archivo `consolidado_kobo_valido.xlsx` en el panel lateral para continuar.")
