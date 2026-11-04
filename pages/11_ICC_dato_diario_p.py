@@ -9,13 +9,13 @@ import streamlit as st
 
 # --- CONFIGURACIÓN DE LA PÁGINA STREAMLIT ---
 st.set_page_config(
-    page_title="Extracción y Matriz ICC",
+    page_title="Extracción de datos de estaciones de ICC - REDMET y generación de documento diario",
     page_icon="📥",
     layout="wide"
 )
 
-st.title("📥 Extractor de Datos Diarios y Matriz Consolidada - REDMET ICC")
-st.markdown("Herramienta de autenticación, extracción de balance diario, construcción de matriz de balance meteorológico y control de calidad.")
+st.title("📥 Extracción de datos de estaciones de ICC - REDMET y generación de documento diario")
+st.markdown("Herramienta de autenticación, extracción de balance diario, construcción de matriz de datos climáticos y control de calidad.")
 
 # --- CONFIGURACIÓN DE CREDENCIALES Y PARÁMETROS OFICIALES ---
 URL_LOGIN = "https://redmet.icc.org.gt/login"
@@ -252,7 +252,7 @@ def procesar_matriz_y_qc(df_raw):
 
 
 # --- INTERFAZ DE USUARIO Y PROCESAMIENTO ---
-if st.button("🚀 Extraer Datos y Generar Matriz Consolidada", use_container_width=True):
+if st.button("🚀 Extraer datos,control de calidad y generación de documento diario", use_container_width=True):
     with st.spinner("Conectando con REDMET ICC, extrayendo variables y calculando matriz..."):
         df_resultado = ejecutar_extraccion()
         if df_resultado is not None and not df_resultado.empty:
@@ -267,7 +267,7 @@ if st.button("🚀 Extraer Datos y Generar Matriz Consolidada", use_container_wi
 # --- DESPLIEGUE DE RESULTADOS Y DESCARGAS ---
 if st.session_state.df_matriz is not None:
     st.markdown("---")
-    st.subheader("🛡️ Reporte de Control de Calidad y Alertas")
+    st.subheader("🛡️ Reporte de Control de Calidad y alertas")
     
     if st.session_state.reporte_qc:
         for obs in st.session_state.reporte_qc:
@@ -276,7 +276,7 @@ if st.session_state.df_matriz is not None:
         st.success("✅ Todas las estaciones se encuentran dentro de los rangos normales de temperatura y precipitación.")
 
     st.markdown("---")
-    st.subheader("📊 Matriz Meteorológica Consolidada")
+    st.subheader("📊 Documento de ICC Matriz Meteorológica Consolidada")
     st.dataframe(st.session_state.df_matriz, use_container_width=True)
 
     # Preparación de descargas
