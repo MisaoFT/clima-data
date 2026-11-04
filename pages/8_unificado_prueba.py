@@ -417,4 +417,63 @@ if uploaded_files:
                 ):
                     if not inc_tmin.empty:
                         st.dataframe(
-                            inc_tmin[["estacion_std", "fecha_str", "hora_std
+                            inc_tmin[["estacion_std", "fecha_str", "hora_std", "tmin", "tseca"]],
+                            use_container_width=True,
+                        )
+                    else:
+                        st.success("No hay registros con Tmin mayor o igual a Tseca.")
+
+                with st.expander(
+                    f"⚠️ Inconsistencias Físicas: Tmax <= Tseca ({len(inc_tmax)} casos)",
+                    expanded=True,
+                ):
+                    if not inc_tmax.empty:
+                        st.dataframe(
+                            inc_tmax[["estacion_std", "fecha_str", "hora_std", "tmax", "tseca"]],
+                            use_container_width=True,
+                        )
+                    else:
+                        st.success("No hay registros con Tmax menor o igual a Tseca.")
+
+                with st.expander(
+                    f"🌧️ Lluvias Extremas (> 40 mm) ({len(ex_lluvia)} casos)",
+                    expanded=True,
+                ):
+                    if not ex_lluvia.empty:
+                        st.dataframe(
+                            ex_lluvia[["estacion_std", "fecha_str", "hora_std", "lluvia"]],
+                            use_container_width=True,
+                        )
+                    else:
+                        st.success("No hay registros de lluvia extrema.")
+
+                with st.expander(
+                    f"🔥 Temperaturas Máximas Extremas (> 42 °C) ({len(ex_tmax)} casos)",
+                    expanded=True,
+                ):
+                    if not ex_tmax.empty:
+                        st.dataframe(
+                            ex_tmax[["estacion_std", "fecha_str", "hora_std", "tmax"]],
+                            use_container_width=True,
+                        )
+                    else:
+                        st.success("No hay registros de temperaturas máximas extremas.")
+
+                with st.expander(
+                    f"❄️ Temperaturas Mínimas Extremas (< 0 °C) ({len(ex_tmin)} casos)",
+                    expanded=True,
+                ):
+                    if not ex_tmin.empty:
+                        st.dataframe(
+                            ex_tmin[["estacion_std", "fecha_str", "hora_std", "tmin"]],
+                            use_container_width=True,
+                        )
+                    else:
+                        st.success(
+                            "No hay registros de temperaturas mínimas bajo el punto de congelación."
+                        )
+
+    else:
+        st.info("Por favor asegúrate de subir los tres archivos (Automáticas, Climáticas y Sinópticas) en el menú lateral.")
+else:
+    st.info("👈 Comienza subiendo tus archivos CSV en el panel lateral para habilitar la auditoría y descarga.")
