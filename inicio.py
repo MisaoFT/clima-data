@@ -14,19 +14,19 @@ portada = st.Page(
 extraccion_diario = st.Page(
     "pages/6_extraccion_dato_diario_ICC_.py", 
     title="Extracción diaria ICC - REDMET", 
-    icon="⚡"
+    icon="📆"
 )
 
 extraccion_kobo = st.Page(
     "pages/10_extraccion_kobo_dato_diario.py", 
     title="Extracción desde archivos de KOBOCOLLECT", 
-    icon="⚡"
+    icon="📆"
 )
 
 pruebas_laboratorio = st.Page(
     "pages/9_prueba_2_pivote.py", 
-    title="Pruebas y Laboratorio", 
-    icon="🧪"
+    title="Datos diarios INSIVUMEH", 
+    icon="🧾"
 )
 
 # BLOQUE 2: Lluvias Parciales (Extracciones y Procesamiento)
