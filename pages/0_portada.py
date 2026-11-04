@@ -1,4 +1,4 @@
-cimport streamlit as st
+import streamlit as st
 
 # --- CONTENIDO VISUAL DE LA PORTADA PRINCIPAL ---
 st.title("🌍 Sección de Climatología: Sistema Integrado de Herramientas Meteorológicas (SIHM)")
