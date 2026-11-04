@@ -69,7 +69,7 @@ pruebas_Kobo = st.Page(
     icon="⚡"
 )
 # Bloque: Pruebas pivote
-pruebas_pivote = st.Page(
+matriz_pivote = st.Page(
     "pages/9_prueba_2_pivote.py", 
     title="Matriz de archivo diario preliminar", 
     icon="⚡"
@@ -91,7 +91,7 @@ navegacion_sihm = st.navigation(
             extraccion_diario,
             extraccion_KOBO,
             pruebas_Kobo,
-            pruebas_pivote
+            matriz_pivote
         ]
     }
 )
