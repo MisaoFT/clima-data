@@ -8,21 +8,22 @@ import streamlit as st
 # CONFIGURACIÓN DE LA PÁGINA
 # ==========================================
 st.set_page_config(
-    page_title="Control de Calidad y Consolidado Kobo",
+    page_title="Control de calidad y unificación de datos desde KoboCollect",
     page_icon="🌤️",
     layout="wide",
 )
 
-st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica INSIVUMEH")
+st.title("🌤️ Auditoría de calidad de datos diarios preliminares y unificación de archivos - INSIVUMEH")
 st.markdown(
-    "Plantilla base de procesamiento: sube tus archivos de KoboToolbox para "
+    "Plantilla base de procesamiento: Sube tus archivos de KoboToolbox: Estaciones climaticas, sinópticas y automáticas para: "
     "unificar variables meteorológicas, formatear selecciones múltiples de fenómenos, "
     "aplicar ajustes de formato y escala (octas 0-8, rumbo vectorial, humedad entera) "
-    "y auditar inconsistencias físicas."
+    "visualizar las alertas de temperatura y lluvia"
+    " auditar inconsistencias físicas y descargar el archivo"
 )
 
 # Panel lateral
-st.sidebar.header("📁 Carga de Archivos CSV")
+st.sidebar.header("📁 Carga de archivos en formato .CSV")
 uploaded_files = st.sidebar.file_uploader(
     "Selecciona tus archivos de Kobo",
     type=["csv"],
@@ -415,9 +416,9 @@ if uploaded_files:
 
                 st.success("✅ ¡Procesamiento completado con éxito!")
                 st.download_button(
-                    label="📥 Descargar Archivo Excel Consolidado Completo",
+                    label="📥 Descargar archivo excel unificado y revisado",
                     data=excel_data,
-                    file_name="consolidado_kobo_valido.xlsx",
+                    file_name="dato_diario_unificado_valido.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                 )
