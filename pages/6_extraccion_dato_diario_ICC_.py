@@ -132,7 +132,7 @@ def ejecutar_extraccion():
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🚀 Extraer Datos de Servidor", use_container_width=True):
+    if st.button("🚀 1. Extraer datos de servidor", use_container_width=True):
         with st.spinner("Conectando con REDMET ICC y procesando matrices..."):
             df_resultado = ejecutar_extraccion()
             if df_resultado is not None and not df_resultado.empty:
@@ -150,7 +150,7 @@ with col2:
         csv_data = csv_buffer.getvalue()
 
         st.download_button(
-            label="💾 Descargar Archivo CSV",
+            label="💾 2. Descargar archivo .CSV",
             data=csv_data,
             file_name=st.session_state.nombre_archivo,
             mime="text/csv",
