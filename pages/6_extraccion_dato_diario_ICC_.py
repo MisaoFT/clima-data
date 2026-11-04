@@ -14,8 +14,8 @@ st.set_page_config(
     layout="wide" # Configuración optimizada para visualización de tablas anchas
 )
 
-st.title("📥 Extractor de Datos Diarios - Plataforma ICC")
-st.markdown("Esta herramienta realiza la autenticación automática en el portal REDMET para procesar el balance diario.")
+st.title("📥 Descarga de Datos Diarios - Plataforma ICC")
+st.markdown("Esta herramienta realiza la autenticación automática en el portal REDMET para procesar el dato diario.")
 
 # --- CONFIGURACIÓN DE CREDENCIALES OFICIALES ---
 URL_LOGIN = "https://redmet.icc.org.gt/login"
