@@ -98,9 +98,8 @@ navegacion_sihm = st.navigation(
             matriz_dato_icc, 
             matriz_dato_kobo, 
             mapa_parcial
-        ],
-
         ]
+
     }
 )
 
