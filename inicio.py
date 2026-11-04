@@ -68,7 +68,12 @@ pruebas_Kobo = st.Page(
     title="Pruebas de archivos", 
     icon="⚡"
 )
-
+# Bloque: Pruebas pivote
+pruebas_pivote = st.Page(
+    "pages/9_prueba_2_pivote.py", 
+    title="Matriz de archivo diario preliminar", 
+    icon="⚡"
+)
 # --- 2. CREACIÓN DE SUBCARPETAS INTELIGENTES EN EL MENÚ ---
 navegacion_sihm = st.navigation(
     {
@@ -85,7 +90,8 @@ navegacion_sihm = st.navigation(
         "📅 Monitoreo Continuo": [
             extraccion_diario,
             extraccion_KOBO,
-            pruebas_Kobo
+            pruebas_Kobo,
+            pruebas_pivote
         ]
     }
 )
