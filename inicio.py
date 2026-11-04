@@ -49,7 +49,7 @@ mapa_parcial = st.Page(
 )
 
 # Bloque: Continuo Diario (¡Agregado correctamente!)
-extraccion_diario = st.Page(
+extraccion_diario_ICC = st.Page(
     "pages/6_extraccion_dato_diario_ICC_.py", 
     title="Extracción ICC DIARIO REDMET", 
     icon="⚡"
@@ -77,7 +77,7 @@ matriz_pivote = st.Page(
 # Bloque: Extraccion dato diario
 DD_extra = st.Page(
     "pages/10_extraccion_kobo_dato_diario.py", 
-    title="Extraccion de Kobo dato diario fenomenos corregidos", 
+    title="Extraccion desde archivos de KoboCollect", 
     icon="⚡"
 )
 
@@ -85,6 +85,11 @@ DD_extra = st.Page(
 navegacion_sihm = st.navigation(
     {
         "Módulo Principal": [portada],
+        "📅 Datos Diarios Preliminares": [
+            extraccion_diario_ICC
+            DD_extra,
+            matriz_pivote
+          
         "命 Lluvias Parciales: Extracción": [
             dato_icc_7_13, 
             dato_icc_13_18
@@ -94,12 +99,7 @@ navegacion_sihm = st.navigation(
             matriz_dato_kobo, 
             mapa_parcial
         ],
-        "📅 Monitoreo Continuo": [
-            extraccion_diario,
-            extraccion_KOBO,
-            pruebas_Kobo,
-            matriz_pivote,
-            DD_extra
+
         ]
     }
 )
