@@ -418,13 +418,13 @@ if uploaded_files:
                 st.download_button(
                     label="📥 Descargar archivo excel unificado y revisado",
                     data=excel_data,
-                    file_name="dato_diario_unificado_valido.xlsx",
+                    file_name="dato_diario_unificado_kobo.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                 )
 
                 # PASO 5: REPORTE CONTROL DE CALIDAD
-                st.subheader("🚨 Reporte Detallado de Control de Calidad")
+                st.subheader("🚨 Reporte detallado de Control de Calidad")
                 inc_tmin = df_unificado[
                     (df_unificado["tmin"].notnull())
                     & (df_unificado["tseca"].notnull())
