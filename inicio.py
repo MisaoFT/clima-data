@@ -16,6 +16,11 @@ extraccion_diario = st.Page(
     title="Extracción diaria ICC - REDMET", 
     icon="📆"
 )
+ICC_diario = st.Page(
+    "pages/11_ICC_dato_diario_p.py", 
+    title="PRUEBA Extracción diaria ICC - REDMET", 
+    icon="📆"
+)
 
 extraccion_kobo = st.Page(
     "pages/10_extraccion_kobo_dato_diario.py", 
@@ -77,6 +82,7 @@ navegacion_sihm = st.navigation(
         
         "📅 Datos Diarios Preliminares": [
             extraccion_diario,
+            ICC_diario,
             extraccion_kobo,
             pruebas_laboratorio
         ],
