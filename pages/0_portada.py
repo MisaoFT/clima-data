@@ -4,8 +4,8 @@ import streamlit as st
 st.markdown(
     """
     <h1 style='text-align: center; margin-bottom: 20px;'>
-        🌍 Sección de Climatología<br>
-        <span style='font-size: 0.85em; font-weight: normal;'>Sistema Integrado de Herramientas Meteorológicas (SIHM)</span>
+        🌍✨ Sección de Climatología ✨ <br>
+        <span style='font-size: 0.85em; font-weight: normal;'>Sistema Integrado de Herramientas Meteorológicas (SIHM)🛠️</span>
     </h1>
     """, 
     unsafe_allow_html=True
