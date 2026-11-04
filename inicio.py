@@ -74,6 +74,13 @@ matriz_pivote = st.Page(
     title="Matriz de archivo diario preliminar", 
     icon="⚡"
 )
+# Bloque: Extraccion dato diario
+matriz_pivote = st.Page(
+    "pages/10_extraccion_kobo_dato_diario.py", 
+    title="Extraccion de Kobo dato diario fenomenos corregidos", 
+    icon="⚡"
+)
+
 # --- 2. CREACIÓN DE SUBCARPETAS INTELIGENTES EN EL MENÚ ---
 navegacion_sihm = st.navigation(
     {
