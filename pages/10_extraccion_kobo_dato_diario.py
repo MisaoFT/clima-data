@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🌤️ Auditoría de calidad de datos diarios preliminares y unificación de archivos - INSIVUMEH")
+st.title("🌤️ Revisión de calidad de datos y unificación de archivos de KoboCollect- INSIVUMEH")
 st.markdown("""
 Sube tus archivos de KoboToolbox (Estaciones climáticas, sinópticas y automáticas) para:
 * Unificar variables meteorológicas.
