@@ -50,7 +50,7 @@ if "df_matriz" not in st.session_state:
 if "reporte_qc" not in st.session_state:
     st.session_state.reporte_qc = []
 
-# --- FUNCIÓN DE EXTRACCIÓN DE DATOS ---
+# --- FUNCIÓN DE EXTRACCIÓN DE DATOS Y RESUMENES ---
 def ejecutar_extraccion():
     IDS_ESTACIONES = "3,37,33,14,1,17,25,31,21,15,24,22,5,6,11,13,29,30,4,20,26,23,9,10,34,28,8,19,27,"
     VARIABLES_SQL = "AVG(temperatura) AS temperatura,MIN(temperatura) AS temperatura_minima,MAX(temperatura) AS temperatura_maxima,SUM(precipitacion) AS precipitacion,"
@@ -127,17 +127,56 @@ def ejecutar_extraccion():
                         if 'Fecha' in df.columns:
                             df['Fecha'] = df['Fecha'].astype(str).str.split().str[0]
                         
-                        # Limpiar filas de resumen extra de la API si existieran
+                        # Limpiar filas de resumen extra nativas de la API si vinieran incluidas
                         df = df[df['Fecha'].str.match(r'^\d{4}-\d{2}-\d{2}$', na=False)]
                         df = df.sort_values(by=["Estacion", "Fecha"]).reset_index(drop=True)
-                        return df
+                        
+                        # --- CONSTRUCCIÓN DE FILAS DE RESUMEN CON FILA DE POR MEDIO ---
+                        cols_numericas = ["temperatura", "temperatura minima", "temperatura maxima", "precipitacion"]
+                        
+                        val_max = df[cols_numericas].max().round(1)
+                        val_min = df[cols_numericas].min().round(1)
+                        val_prom = df[cols_numericas].mean().round(1)
+                        val_suma = df[cols_numericas].sum().round(1)
+
+                        # Crear filas de resumen
+                        fila_vacia = {col: None for col in df.columns}
+                        
+                        fila_max = {col: None for col in df.columns}
+                        fila_max['Estacion'] = None
+                        fila_max['Fecha'] = 'Máximo:'
+                        for col in cols_numericas: fila_max[col] = val_max[col]
+
+                        fila_min = {col: None for col in df.columns}
+                        fila_min['Estacion'] = None
+                        fila_min['Fecha'] = 'Mínimo:'
+                        for col in cols_numericas: fila_min[col] = val_min[col]
+
+                        fila_prom = {col: None for col in df.columns}
+                        fila_prom['Estacion'] = None
+                        fila_prom['Fecha'] = 'Promedio:'
+                        for col in cols_numericas: fila_prom[col] = val_prom[col]
+
+                        fila_suma = {col: None for col in df.columns}
+                        fila_suma['Estacion'] = None
+                        fila_suma['Fecha'] = 'Suma:'
+                        for col in cols_numericas: fila_suma[col] = val_suma[col]
+
+                        # Concatenar con fila de por medio (fila vacía)
+                        df_resumenes = pd.DataFrame([fila_vacia, fila_max, fila_min, fila_prom, fila_suma])
+                        df_final_crudo = pd.concat([df, df_resumenes], ignore_index=True)
+                        
+                        return df_final_crudo
     except Exception as e:
         st.error(f"❌ Error durante el ciclo de extracción: {e}")
     return None
 
 # --- FUNCIÓN DE CONSTRUCCIÓN DE MATRIZ Y CONTROL DE CALIDAD ---
 def procesar_matriz_y_qc(df_raw):
-    fechas = sorted(df_raw['Fecha'].unique())
+    # Filtrar solo filas con fecha real para el cálculo de la matriz
+    df_clean = df_raw[df_raw['Fecha'].str.match(r'^\d{4}-\d{2}-\d{2}$', na=False)].copy()
+    fechas = sorted(df_clean['Fecha'].unique())
+    
     if len(fechas) < 2:
         st.warning("⚠️ No se encontraron 2 días completos de datos para construir la matriz.")
         return None, []
@@ -155,7 +194,7 @@ def procesar_matriz_y_qc(df_raw):
     reporte_qc = []
 
     for estacion in ESTACIONES_MAESTRAS:
-        df_est = df_raw[df_raw['Estacion'] == estacion]
+        df_est = df_clean[df_clean['Estacion'] == estacion]
         
         if df_est.empty:
             matriz_rows[0][estacion] = 'NA'
@@ -253,7 +292,7 @@ if st.session_state.df_matriz is not None:
     csv_matriz_buffer = io.StringIO()
     st.session_state.df_matriz.to_csv(csv_matriz_buffer, index=False, encoding='utf-8-sig')
     
-    # 3. CSV Datos Crudos
+    # 3. CSV Datos Crudos (con fila de por medio y resúmenes)
     csv_raw_buffer = io.StringIO()
     st.session_state.df_procesado.to_csv(csv_raw_buffer, index=False, encoding='utf-8-sig')
 
