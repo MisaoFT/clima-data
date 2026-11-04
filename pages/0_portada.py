@@ -1,11 +1,11 @@
-import streamlit as st
+cimport streamlit as st
 
 # --- CONTENIDO VISUAL DE LA PORTADA PRINCIPAL ---
-st.title("🌍 Sistema Integrado de Herramientas Meteorológicas (SIHM)")
+st.title("🌍 Sección de Climatología: Sistema Integrado de Herramientas Meteorológicas (SIHM)")
 st.markdown("---")
 
 st.markdown("""
-### ¡Bienvenida al Centro de Control Meteorológico!
+### ¡Bienvenida al Centro de control de datos diarios preliminares!
 Utiliza el nuevo menú lateral izquierdo para acceder a las herramientas organizadas por categorías de procesamiento.
 """)
 
