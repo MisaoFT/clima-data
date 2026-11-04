@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("📊 Generador de documento de dato diario preliminar (INSIVUMEH)")
+st.title("📊 Documento de dato diario preliminar (documento_drive)")
 st.markdown(
     "Sube tu archivo `dato_diario_unificado_kobo.xlsx` para transformarlo "
     "en el documento de dato diario preliminar `dato_diario_preliminar` con las 67 estaciones oficiales."
