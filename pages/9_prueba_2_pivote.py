@@ -8,15 +8,15 @@ import streamlit as st
 # CONFIGURACIÓN DE LA PÁGINA
 # ==========================================
 st.set_page_config(
-    page_title="Generador de Matriz Meteorológica INSIVUMEH",
-    page_icon="📊",
+    page_title="Generación de documento de dato diario preliminar INSIVUMEH",
+    page_icon="🧾",
     layout="wide",
 )
 
-st.title("📊 Generador de Matriz Diaria Meteorológica (INSIVUMEH)")
+st.title("📊 Generador de documento de dato diario preliminar (INSIVUMEH)")
 st.markdown(
-    "Sube tu archivo `consolidado_kobo_valido.xlsx` para transformarlo "
-    "en la matriz final pivotada `dato_diario_preliminar` con las 64 estaciones oficiales."
+    "Sube tu archivo `dato_diario_unificado_kobo.xlsx` para transformarlo "
+    "en el documento de dato diario preliminar `dato_diario_preliminar` con las 67 estaciones oficiales."
 )
 
 # Estructura oficial de 64 estaciones Insivumeh
@@ -148,9 +148,9 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame) -> pd.DataFra
 # ==========================================
 # CARGA DE ARCHIVO ÚNICA
 # ==========================================
-st.sidebar.header("📁 Archivo de Entrada")
+st.sidebar.header("📁 Archivo de entrada")
 file_excel = st.sidebar.file_uploader(
-    "Sube tu archivo Excel `consolidado_kobo_valido.xlsx`",
+    "Sube tu archivo excel `dato_diario_unificado_kobo.xlsx`",
     type=["xlsx", "xls"]
 )
 
@@ -160,12 +160,12 @@ if file_excel:
         st.success("¡Archivo cargado correctamente!")
         st.info(f"Registros encontrados: **{len(df_cons)}** filas.")
 
-        if st.button("🚀 Generar Matriz Pivotada"):
-            with st.spinner("Generando matriz de 64 estaciones y aplicando reglas climatológicas..."):
+        if st.button("🚀 Generar documento diario"):
+            with st.spinner("Generando matriz de 67 estaciones y aplicando reglas climatológicas..."):
                 matriz_final = transformar_consolidado_a_matriz(df_cons)
 
                 st.success("✅ ¡Matriz `dato_diario_preliminar` generada exitosamente!")
-                st.subheader("📋 Vista Previa de la Matriz Generada")
+                st.subheader("📋 Vista previa del documento")
                 st.dataframe(matriz_final.head(15), use_container_width=True)
 
                 # Preparar descargas
@@ -196,4 +196,4 @@ if file_excel:
                         use_container_width=True
                     )
 else:
-    st.info("👈 Por favor, sube tu archivo `consolidado_kobo_valido.xlsx` en el panel lateral para continuar.")
+    st.info("👈 Por favor, sube tu archivo `dato_diario_unificado_kobo.xlsx` en el panel lateral para continuar.")
