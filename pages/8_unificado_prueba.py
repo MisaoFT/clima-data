@@ -8,12 +8,12 @@ import streamlit as st
 # CONFIGURACIÓN DE LA PÁGINA
 # ==========================================
 st.set_page_config(
-    page_title="Control de Calidad y Consolidado Kobo",
+    page_title="Control de calidad y consolidado KoboCollect",
     page_icon="🌤️",
     layout="wide",
 )
 
-st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica Insivumeh")
+st.title("🌤️ Auditoría de calidad y consolidación del Dato Diario Preliminar")
 st.markdown(
     "Sube tus archivos de KoboToolbox para unificar variables básicas, "
     "secundarias (Evaporación, Brillo Solar, Radiación, Suelo) y calculadas, "
