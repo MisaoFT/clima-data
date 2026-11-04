@@ -1,20 +1,14 @@
 import streamlit as st
 
 # --- 1. CONFIGURACIÓN INDEPENDIENTE DE CADA PÁGINA ---
-# Validado exactamente contra la estructura física de tu repositorio
 
+# Módulo Principal
 portada = st.Page(
     "pages/0_portada.py", 
     title="Inicio / Portada", 
     icon="🌍", 
     default=True
 )
-ocultar_estilo = """
-    <style>
-    footer {visibility: hidden;}
-    </style>
-"""
-st.markdown(ocultar_estilo, unsafe_allow_html=True)
 
 # Bloque: Extracciones Parciales Estacionales
 dato_icc_7_13 = st.Page(
@@ -48,60 +42,71 @@ mapa_parcial = st.Page(
     icon="🗺️"
 )
 
-# Bloque: Continuo Diario (¡Agregado correctamente!)
+# Bloque: Continuo Diario
 extraccion_diario_ICC = st.Page(
     "pages/6_extraccion_dato_diario_ICC_.py", 
     title="Extracción ICC DIARIO REDMET", 
     icon="⚡"
 )
 
-# Bloque: Continuo Diario 
 extraccion_KOBO = st.Page(
     "pages/7_Dato_diario_kobo_consolidar.py", 
     title="Consolidación KOBOCOLLECT", 
     icon="⚡"
 )
 
-# Bloque: Pruebas 
+# Bloque: Pruebas y Laboratorio
 pruebas_Kobo = st.Page(
     "pages/8_unificado_prueba.py", 
     title="Pruebas de archivos", 
-    icon="⚡"
+    icon="🧪"
 )
-# Bloque: Pruebas pivote
+
 matriz_pivote = st.Page(
     "pages/9_prueba_2_pivote.py", 
     title="Matriz de archivo diario preliminar", 
-    icon="⚡"
+    icon="📊"
 )
-# Bloque: Extraccion dato diario
+
 DD_extra = st.Page(
     "pages/10_extraccion_kobo_dato_diario.py", 
-    title="Extraccion desde archivos de KoboCollect", 
+    title="Extracción desde archivos de KoboCollect", 
     icon="⚡"
 )
 
-# --- 2. CREACIÓN DE SUBCARPETAS INTELIGENTES EN EL MENÚ ---
+# --- 2. ESTILOS ---
+ocultar_estilo = """
+    <style>
+    footer {visibility: hidden;}
+    </style>
+"""
+st.markdown(ocultar_estilo, unsafe_allow_html=True)
+
+# --- 3. CREACIÓN DE SUBCARPETAS EN EL MENÚ ---
 navegacion_sihm = st.navigation(
     {
         "Módulo Principal": [portada],
+        
         "📅 Datos Diarios Preliminares": [
             extraccion_diario_ICC,
+            extraccion_KOBO,
             DD_extra,
-            matriz_pivote
-        ],  
-        "命 Lluvias Parciales: Extracción": [
+            matriz_pivote,
+            pruebas_Kobo
+        ],
+        
+        "🌧️ Lluvias Parciales: Extracción": [
             dato_icc_7_13, 
             dato_icc_13_18
         ],
+        
         "🛠️ Lluvias Parciales: Procesamiento": [
             matriz_dato_icc, 
             matriz_dato_kobo, 
             mapa_parcial
         ]
-
     }
 )
 
-# --- 3. EJECUCIÓN DE LA NAVEGACIÓN ---
+# --- 4. EJECUCIÓN DE LA NAVEGACIÓN ---
 navegacion_sihm.run()
