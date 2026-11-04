@@ -89,7 +89,7 @@ navegacion_sihm = st.navigation(
             extraccion_diario_ICC
             DD_extra,
             matriz_pivote
-          
+        ],  
         "命 Lluvias Parciales: Extracción": [
             dato_icc_7_13, 
             dato_icc_13_18
