@@ -55,10 +55,17 @@ extraccion_diario = st.Page(
     icon="⚡"
 )
 
-# Bloque: Continuo Diario (¡Agregado correctamente!)
+# Bloque: Continuo Diario 
 extraccion_KOBO = st.Page(
     "pages/7_Dato_diario_kobo_consolidar.py", 
     title="Consolidación KOBOCOLLECT", 
+    icon="⚡"
+)
+
+# Bloque: Pruebas 
+pruebas_Kobo = st.Page(
+    "pages/8_unificado_prueba.py", 
+    title="Pruebas de archivos", 
     icon="⚡"
 )
 
@@ -77,7 +84,8 @@ navegacion_sihm = st.navigation(
         ],
         "📅 Monitoreo Continuo": [
             extraccion_diario,
-            extraccion_KOBO
+            extraccion_KOBO,
+            pruebas_Kobo
         ]
     }
 )
