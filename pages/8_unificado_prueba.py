@@ -13,11 +13,11 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica Insivumeh")
+st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica INSIVUMEH")
 st.markdown(
-    "Sube tus archivos de KoboToolbox para unificar variables básicas, "
-    "secundarias (Evaporación, Brillo Solar, Radiación, Suelo) y calculadas, "
-    "y visualizar las alertas de calidad de temperatura y lluvia."
+    "Plantilla base de procesamiento: sube tus archivos de KoboToolbox para "
+    "unificar variables meteorológicas, aplicar ajustes de formato y escala (octas 0-8, "
+    "rumbo vectorial, humedad entera, presión a 1 decimal) y auditar inconsistencias físicas."
 )
 
 # Panel lateral
@@ -64,24 +64,32 @@ def cargar_y_extraer_fecha(file_bytes) -> pd.DataFrame:
     return df
 
 
-def obtener_direccion_cardinal(deg):
-    """Mapea un ángulo en grados (0° - 360°) al punto cardinal más cercano."""
-    if pd.isnull(deg):
+def ajustar_rumbo_cardinal_grados(grados: float) -> float:
+    """
+    Ajusta un ángulo continuo de dirección del viento al rumbo cardinal estándar
+    más cercano en grados (0, 45, 90, 135, 180, 225, 270, 315, 360).
+    """
+    if pd.isnull(grados):
         return np.nan
-    direcciones = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"]
-    idx = int((deg + 22.5) % 360 // 45)
-    return direcciones[idx]
+    
+    # 8 rumbos principales (cada 45 grados)
+    rumbos_estandar = [0.0, 45.0, 90.0, 135.0, 180.0, 225.0, 270.0, 315.0, 360.0]
+    rumbo_mas_cercano = min(rumbos_estandar, key=lambda r: abs(r - grados))
+    
+    # Normalizar 360.0 a 360.0 o 0.0 según convención
+    return rumbo_mas_cercano
 
 
 def calcular_registro_unico_diario(p_list, hr_list, t_seca_media, nub_list, v_dir_list, v_vel_list):
     """
-    Calcula datos diarios ajustados según especificaciones Insivumeh:
-    - Presión: 1 decimal (hPa)
-    - Humedad: Entero (0-100%)
-    - Nubosidad: Octas (0 a 8)
-    - Viento: Dirección en Grados y Rosa de los Vientos (N, NE, E, SE, S, SO, O, NO)
+    Calcula datos diarios ponderados aplicando formatos INSIVUMEH:
+    1. Presión a 1 decimal
+    2. Humedad Relativa a número entero
+    3. Nubosidad representativa en octas (0 a 8)
+    4. Dirección del viento vectorial ajustada al rumbo cardinal estándar más cercano en grados
+    5. Termómetro húmedo derivado (Stull)
     """
-    # 1. Presión Ponderada a 1 decimal
+    # 1. Presión Ponderada a 1 decimal (P07 + P13 + 2*P18) / 4
     p_valid = [v for v in p_list if pd.notnull(v)]
     if len(p_valid) == 3:
         p_diaria = round((p_valid[0] + p_valid[1] + (2 * p_valid[2])) / 4.0, 1)
@@ -90,29 +98,30 @@ def calcular_registro_unico_diario(p_list, hr_list, t_seca_media, nub_list, v_di
     else:
         p_diaria = np.nan
 
-    # 2. Humedad Relativa a NÚMERO ENTERO
+    # 2. Humedad Relativa Ponderada como Número Entero
     hr_valid = [v for v in hr_list if pd.notnull(v)]
     if len(hr_valid) == 3:
-        hr_raw = (hr_valid[0] + hr_valid[1] + (2 * hr_valid[2])) / 4.0
-        hr_diaria = int(round(hr_raw, 0))
+        hr_calc = (hr_valid[0] + hr_valid[1] + (2 * hr_valid[2])) / 4.0
+        hr_diaria = float(round(hr_calc, 0))
     elif len(hr_valid) > 0:
-        hr_diaria = int(round(float(np.mean(hr_valid)), 0))
+        hr_diaria = float(round(float(np.mean(hr_valid)), 0))
     else:
         hr_diaria = np.nan
 
-    if pd.notnull(hr_diaria) and hr_diaria > 100:
-        hr_diaria = 100
+    if pd.notnull(hr_diaria) and hr_diaria > 100.0:
+        hr_diaria = 100.0
 
-    # 3. Nubosidad Diaria en Octas (Tendencia de 0 a 8)
+    # 3. Nubosidad Diaria Representativa en Octas (Escala real 0 a 8)
     nub_valid = [v for v in nub_list if pd.notnull(v)]
     if len(nub_valid) > 0:
-        octas_mean = np.mean(nub_valid)
-        octas_diaria = int(round(octas_mean, 0))
-        octas_diaria = max(0, min(8, octas_diaria))
+        # Tendencia promedio de octas del día redondeada al entero más cercano (0-8)
+        octas_media = round(float(np.mean(nub_valid)), 0)
+        octas_media = max(0.0, min(8.0, octas_media))
+        cod_nubosidad_diaria = float(octas_media)
     else:
-        octas_diaria = np.nan
+        cod_nubosidad_diaria = np.nan
 
-    # 4. Dirección del Viento Vectorial y Rosa de los Vientos
+    # 4. Vector Viento Ajustado al Rumbo Cardinal Estándar (Grados: 0, 45, 90, 135, 180, 225, 270, 315)
     ve, vn = 0.0, 0.0
     valid_wind = False
     for d, v in zip(v_dir_list, v_vel_list):
@@ -123,17 +132,14 @@ def calcular_registro_unico_diario(p_list, hr_list, t_seca_media, nub_list, v_di
             vn += v * math.cos(rad)
 
     if not valid_wind:
-        dir_viento_deg = np.nan
-        dir_viento_cardinal = np.nan
+        dir_viento_diaria = np.nan
     elif ve == 0 and vn == 0:
-        dir_viento_deg = 0.0
-        dir_viento_cardinal = "N"
+        dir_viento_diaria = 0.0
     else:
-        dir_viento_deg = math.degrees(math.atan2(ve, vn))
-        if dir_viento_deg < 0:
-            dir_viento_deg += 360
-        dir_viento_deg = round(dir_viento_deg, 1)
-        dir_viento_cardinal = obtener_direccion_cardinal(dir_viento_deg)
+        grados_calculados = math.degrees(math.atan2(ve, vn))
+        if grados_calculados < 0:
+            grados_calculados += 360
+        dir_viento_diaria = ajustar_rumbo_cardinal_grados(grados_calculados)
 
     # 5. Termómetro Húmedo (Stull)
     if pd.notnull(t_seca_media) and pd.notnull(hr_diaria):
@@ -155,9 +161,8 @@ def calcular_registro_unico_diario(p_list, hr_list, t_seca_media, nub_list, v_di
         "Presion_Diaria_hPa": p_diaria,
         "Humedad_Diaria_Pct": hr_diaria,
         "Termometro_Humedo_Diario_C": tw_diaria,
-        "Nubosidad_Diaria_Octas": octas_diaria,
-        "Dir_Viento_Diaria_Deg": dir_viento_deg,
-        "Dir_Viento_Diaria_Rosa": dir_viento_cardinal,
+        "Nubosidad_Diaria_Cod": cod_nubosidad_diaria,
+        "Dir_Viento_Diaria_Deg": dir_viento_diaria,
     }
 
 
@@ -383,7 +388,7 @@ if uploaded_files:
                 columnas_ordenadas = [
                     "Estacion", "Fecha", "TMED", "TMIN", "TMAX", "LLUVIA_ACUM",
                     "Presion_Diaria_hPa", "Humedad_Diaria_Pct", "Termometro_Humedo_Diario_C",
-                    "Nubosidad_Diaria_Octas", "Dir_Viento_Diaria_Deg", "Dir_Viento_Diaria_Rosa",
+                    "Nubosidad_Diaria_Cod", "Dir_Viento_Diaria_Deg",
                     "EVAPORACION_TANQUE_07H", "EVAPORACION_PICHE_07H", "BRILLO_SOLAR_18H",
                     "RADIACION_SOLAR", "TSUELO_5CM", "TSUELO_50CM", "TSUELO_100CM", "FENOMENOS"
                 ]
