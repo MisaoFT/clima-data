@@ -1,6 +1,6 @@
 import streamlit as st
 
-# --- 1. CONFIGURACIÓN INDEPENDIENTE DE CADA PÁGINA ---
+# --- 1. CONFIGURACIÓN DE PÁGINAS ---
 
 # Módulo Principal
 portada = st.Page(
@@ -10,7 +10,26 @@ portada = st.Page(
     default=True
 )
 
-# Bloque: Extracciones Parciales Estacionales
+# BLOQUE 1: Datos Diarios Preliminares
+extraccion_diario = st.Page(
+    "pages/6_extraccion_dato_diario_ICC_.py", 
+    title="Extracción diaria ICC - REDMET", 
+    icon="⚡"
+)
+
+extraccion_kobo = st.Page(
+    "pages/10_extraccion_kobo_dato_diario.py", 
+    title="Extracción desde archivos de KOBOCOLLECT", 
+    icon="⚡"
+)
+
+pruebas_laboratorio = st.Page(
+    "pages/9_prueba_2_pivote.py", 
+    title="Pruebas y Laboratorio", 
+    icon="🧪"
+)
+
+# BLOQUE 2: Lluvias Parciales (Extracciones y Procesamiento)
 dato_icc_7_13 = st.Page(
     "pages/1_dato_lluvia_icc_7_13.py",
     title="Extracción ICC (07:00 a 13:00 hrs)",
@@ -23,7 +42,6 @@ dato_icc_13_18 = st.Page(
     icon="📥"
 )
 
-# Bloque: Matrices y Post-Procesamiento
 matriz_dato_icc = st.Page(
     "pages/3_matriz_dato_ICC.py",
     title="Matriz: Archivo ICC",
@@ -42,39 +60,8 @@ mapa_parcial = st.Page(
     icon="🗺️"
 )
 
-# Bloque: Continuo Diario
-extraccion_diario_ICC = st.Page(
-    "pages/6_extraccion_dato_diario_ICC_.py", 
-    title="Extracción ICC DIARIO REDMET", 
-    icon="⚡"
-)
 
-extraccion_KOBO = st.Page(
-    "pages/7_Dato_diario_kobo_consolidar.py", 
-    title="Consolidación KOBOCOLLECT", 
-    icon="⚡"
-)
-
-# Bloque: Pruebas y Laboratorio
-pruebas_Kobo = st.Page(
-    "pages/8_unificado_prueba.py", 
-    title="Pruebas de archivos", 
-    icon="🧪"
-)
-
-matriz_pivote = st.Page(
-    "pages/9_prueba_2_pivote.py", 
-    title="Matriz de archivo diario preliminar", 
-    icon="📊"
-)
-
-DD_extra = st.Page(
-    "pages/10_extraccion_kobo_dato_diario.py", 
-    title="Extracción desde archivos de KoboCollect", 
-    icon="⚡"
-)
-
-# --- 2. ESTILOS ---
+# --- 2. OCULTAR ELEMENTOS NATIVOS DE STYLE ---
 ocultar_estilo = """
     <style>
     footer {visibility: hidden;}
@@ -82,31 +69,30 @@ ocultar_estilo = """
 """
 st.markdown(ocultar_estilo, unsafe_allow_html=True)
 
-# --- 3. CREACIÓN DE SUBCARPETAS EN EL MENÚ ---
+
+# --- 3. NAVEGACIÓN Y ESTRUCTURA DE DESPLEGABLES ---
 navegacion_sihm = st.navigation(
     {
         "Módulo Principal": [portada],
         
         "📅 Datos Diarios Preliminares": [
-            extraccion_diario_ICC,
-            extraccion_KOBO,
-            DD_extra,
-            matriz_pivote,
-            pruebas_Kobo
+            extraccion_diario,
+            extraccion_kobo,
+            pruebas_laboratorio
         ],
         
-        "🌧️ Lluvias Parciales: Extracción": [
+        "🌧️ Lluvias Parciales: Extracción y Procesamiento": [
             dato_icc_7_13, 
-            dato_icc_13_18
-        ],
-        
-        "🛠️ Lluvias Parciales: Procesamiento": [
+            dato_icc_13_18,
             matriz_dato_icc, 
             matriz_dato_kobo, 
             mapa_parcial
         ]
     }
 )
+
+# --- 4. EJECUCIÓN DE NAVEGACIÓN ---
+navegacion_sihm.run()
 
 # --- 4. EJECUCIÓN DE LA NAVEGACIÓN ---
 navegacion_sihm.run()
