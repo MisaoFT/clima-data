@@ -93,6 +93,3 @@ navegacion_sihm = st.navigation(
 
 # --- 4. EJECUCIÓN DE NAVEGACIÓN ---
 navegacion_sihm.run()
-
-# --- 4. EJECUCIÓN DE LA NAVEGACIÓN ---
-navegacion_sihm.run()
