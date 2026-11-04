@@ -5,19 +5,19 @@ import streamlit as st
 
 # Configuración de la página
 st.set_page_config(
-    page_title="Control de Calidad y Consolidado Kobo",
+    page_title="Control de calidad y unificación de datos desde Kobo",
     page_icon="🌤️",
     layout="wide",
 )
 
-st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica")
+st.title("🌤️ Auditoría de calidad de datos diarios preliminares y unificación de archivos")
 st.markdown(
-    "Sube tus archivos de KoboToolbox para visualizar las alertas de"
+    "Sube tus archivos de KoboToolbox: Estaciones climaticas, sinópticas y automáticas para visualizar las alertas de"
     " temperatura y lluvia, y descarga el archivo consolidado."
 )
 
 # Panel lateral
-st.sidebar.header("📁 Carga de Archivos CSV")
+st.sidebar.header("📁 Carga de archivos  en .CSV")
 uploaded_files = st.sidebar.file_uploader(
     "Selecciona tus archivos de Kobo",
     type=["csv"],
@@ -44,7 +44,7 @@ if uploaded_files:
   st.sidebar.write(f"- **Sinópticas:** {file_sino.name if file_sino else '❌'}")
 
   if file_auto and file_clim and file_sino:
-    if st.button("🚀 Procesar Datos y Generar Reporte"):
+    if st.button("🚀 Procesar datos y generar reporte de control de calidad"):
       with st.spinner("Procesando archivos y ejecutando control de calidad..."):
 
         # ==========================================
@@ -245,9 +245,9 @@ if uploaded_files:
         # Botón de descarga principal bien visible arriba
         st.success("✅ ¡Procesamiento completado con éxito!")
         st.download_button(
-            label="📥 Descargar Archivo Excel Consolidado",
+            label="📥 Descargar archivo excel unificado",
             data=excel_data,
-            file_name="consolidado_kobo_valido.xlsx",
+            file_name="dato_diario_unificado_valido.xlsx",
             mime=(
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             ),
@@ -257,7 +257,7 @@ if uploaded_files:
         # ==========================================
         # REPORTE DE ALERTAS Y ANOMALÍAS
         # ==========================================
-        st.subheader("🚨 Reporte Detallado de Control de Calidad")
+        st.subheader("🚨 Reporte detallado de control de calidad")
 
         inc_tmin = df_unificado[
             (df_unificado["tmin"].notnull())
@@ -275,15 +275,15 @@ if uploaded_files:
 
         col1, col2 = st.columns(2)
         with col1:
-          st.metric("Alertas de Lluvia (>40mm)", len(ex_lluvia))
+          st.metric("Alertas de lluvia (>40mm)", len(ex_lluvia))
         with col2:
           st.metric(
-              "Alertas de Temperatura (Inconsistencias/Extremas)",
+              "Alertas de temperatura (Inconsistencias/Extremas)",
               len(inc_tmin) + len(inc_tmax) + len(ex_tmax) + len(ex_tmin),
           )
 
         with st.expander(
-            f"⚠️ Inconsistencias Físicas: Tmin >= Tseca ({len(inc_tmin)} casos)",
+            f"⚠️ Inconsistencias físicas: Tmin >= Tseca ({len(inc_tmin)} casos)",
             expanded=True,
         ):
           if not inc_tmin.empty:
