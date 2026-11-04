@@ -16,7 +16,8 @@ st.set_page_config(
 st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica Insivumeh")
 st.markdown(
     "Sube tus archivos de KoboToolbox para unificar variables básicas, "
-    "secundarias (Evaporación, Brillo Solar, Radiación, Suelo) y calculadas."
+    "secundarias (Evaporación, Brillo Solar, Radiación, Suelo) y calculadas, "
+    "y visualizar las alertas de calidad de temperatura y lluvia."
 )
 
 # Panel lateral
@@ -159,7 +160,9 @@ if uploaded_files:
         if st.button("🚀 Procesar Datos y Generar Reporte"):
             with st.spinner("Procesando archivos y ejecutando control de calidad..."):
 
+                # ----------------------------------------------------
                 # PASO 1: CARGA Y PURGA DE COLUMNAS ONE-HOT
+                # ----------------------------------------------------
                 raw_auto = cargar_y_extraer_fecha(file_auto.getvalue())
                 raw_auto = purgar_columnas_one_hot(raw_auto, 3, 23)
 
@@ -169,8 +172,10 @@ if uploaded_files:
                 raw_sino = cargar_y_extraer_fecha(file_sino.getvalue())
                 raw_sino = purgar_columnas_one_hot(raw_sino, 3, 18)
 
-                # PASO 2: HOMOLOGACIÓN DE COLUMNAS A NIVEL GENERAL
-                # Mapeo de columnas para Automáticas
+                # ----------------------------------------------------
+                # PASO 2: HOMOLOGACIÓN Y SELECCIÓN DE COLUMNAS
+                # ----------------------------------------------------
+                # Automáticas
                 df_auto = raw_auto.reindex(
                     columns=[
                         "Nombre de la estación", "Fecha", "fecha_start_clean", "Hora",
@@ -185,7 +190,7 @@ if uploaded_files:
                 for c in ["tseca", "tmin", "tmax", "hum_rel", "pre_atmos", "eva_piche", "bri_solar", "rad_solar", "tsuelo_5", "tsuelo_50", "tsuelo_100"]:
                     df_auto[c] = np.nan
 
-                # Mapeo de columnas para Climáticas
+                # Climáticas
                 df_clim = raw_clim.reindex(
                     columns=[
                         "Nombre de la Estacion:", "Fecha", "fecha_start_clean", "Hora",
@@ -204,7 +209,7 @@ if uploaded_files:
                 ]
                 df_clim["rad_solar"] = np.nan
 
-                # Mapeo de columnas para Sinópticas
+                # Sinópticas
                 df_sino = raw_sino.reindex(
                     columns=[
                         "estacion", "Fecha", "fecha_start_clean", "Hora",
@@ -222,10 +227,12 @@ if uploaded_files:
                 for c in ["eva_piche", "tsuelo_5", "tsuelo_50"]:
                     df_sino[c] = np.nan
 
-                # Concatenación
+                # Concatenar todos los formularios
                 df_unificado = pd.concat([df_auto, df_clim, df_sino], ignore_index=True)
 
-                # PASO 3: LIMPIEZA DE FECHAS, HORAS Y NUMÉRICOS
+                # ----------------------------------------------------
+                # PASO 3: ESTANDARIZACIÓN DE FECHAS, HORAS Y NÚMEROS
+                # ----------------------------------------------------
                 df_unificado["estacion_std"] = (
                     df_unificado["estacion"]
                     .astype(str)
@@ -266,12 +273,14 @@ if uploaded_files:
 
                 df_unificado["fecha_str"] = df_unificado["fecha_dt"].apply(fmt_fecha)
 
-                # PASO 4: REDUCCIÓN Y EXTRACCIÓN HORARIA DE VARIABLES SECUNDARIAS
+                # ----------------------------------------------------
+                # PASO 4: CONSOLIDACIÓN DE REGISTROS DIARIOS
+                # ----------------------------------------------------
                 registros_consolidados = []
                 grupos = df_unificado.groupby(["estacion_std", "fecha_dt"], dropna=False)
 
                 for (estacion, fecha), group in grupos:
-                    # Lecturas tri-horarias de temperatura seca
+                    # Temperatura seca tri-horaria
                     t_07 = group[group["hora_std"] == "07:00"]["tseca"].values
                     t_13 = group[group["hora_std"] == "13:00"]["tseca"].values
                     t_18 = group[group["hora_std"] == "18:00"]["tseca"].values
@@ -290,30 +299,22 @@ if uploaded_files:
                     tmax_dia = group["tmax"].max()
                     lluvia_total = group["lluvia"].sum(min_count=1)
 
-                    # Extracción según el horario oficial de cada variable secundaria
-                    # Evaporación Tanque y Piché -> Lectura oficial de las 07:00
+                    # Extracción por horario de variables secundarias
                     g_07 = group[group["hora_std"] == "07:00"]
-                    eva_tanque_val = g_07["eva_tanque"].values[0] if not g_07.empty and pd.notnull(g_07["eva_tanque"].values[0]) else group["eva_tanque"].dropna().first_valid_index()
-                    eva_tanque_val = group.loc[eva_tanque_val, "eva_tanque"] if eva_tanque_val is not None and isinstance(eva_tanque_val, int) else (eva_tanque_val if pd.notnull(eva_tanque_val) else np.nan)
+                    eva_tanque_val = g_07["eva_tanque"].values[0] if not g_07.empty and pd.notnull(g_07["eva_tanque"].values[0]) else (group["eva_tanque"].dropna().iloc[0] if not group["eva_tanque"].dropna().empty else np.nan)
+                    eva_piche_val = g_07["eva_piche"].values[0] if not g_07.empty and pd.notnull(g_07["eva_piche"].values[0]) else (group["eva_piche"].dropna().iloc[0] if not group["eva_piche"].dropna().empty else np.nan)
 
-                    eva_piche_val = g_07["eva_piche"].values[0] if not g_07.empty and pd.notnull(g_07["eva_piche"].values[0]) else group["eva_piche"].dropna().first_valid_index()
-                    eva_piche_val = group.loc[eva_piche_val, "eva_piche"] if eva_piche_val is not None and isinstance(eva_piche_val, int) else (eva_piche_val if pd.notnull(eva_piche_val) else np.nan)
-
-                    # Brillo Solar y Radiación Solar -> Cierre a las 18:00
                     g_18 = group[group["hora_std"] == "18:00"]
                     brillo_solar_val = g_18["bri_solar"].values[0] if not g_18.empty and pd.notnull(g_18["bri_solar"].values[0]) else group["bri_solar"].max()
                     rad_solar_val = g_18["rad_solar"].values[0] if not g_18.empty and pd.notnull(g_18["rad_solar"].values[0]) else group["rad_solar"].max()
 
-                    # Temperaturas de suelo -> Promedio del día o lectura existente
                     tsuelo_5_val = round(float(group["tsuelo_5"].dropna().mean()), 1) if not group["tsuelo_5"].dropna().empty else np.nan
                     tsuelo_50_val = round(float(group["tsuelo_50"].dropna().mean()), 1) if not group["tsuelo_50"].dropna().empty else np.nan
                     tsuelo_100_val = round(float(group["tsuelo_100"].dropna().mean()), 1) if not group["tsuelo_100"].dropna().empty else np.nan
 
-                    # Fenómenos registrados
                     fenom_list = group["fenomenos"].dropna().astype(str).unique()
                     fenomenos_val = ", ".join(fenom_list) if len(fenom_list) > 0 else "Ninguno"
 
-                    # Listas tri-horarias para variables ponderadas
                     def get_tri_list(col_name):
                         res = []
                         for h in ["07:00", "13:00", "18:00"]:
@@ -357,7 +358,6 @@ if uploaded_files:
 
                 df_consolidado = pd.DataFrame(registros_consolidados)
 
-                # Ordenar columnas formalmente
                 columnas_ordenadas = [
                     "Estacion", "Fecha", "TMED", "TMIN", "TMAX", "LLUVIA_ACUM",
                     "Presion_Diaria_hPa", "Humedad_Diaria_Pct", "Termometro_Humedo_Diario_C",
@@ -367,25 +367,54 @@ if uploaded_files:
                 ]
                 df_consolidado = df_consolidado.reindex(columns=columnas_ordenadas)
 
-                # Generar Excel
+                # Generar Excel en Memoria
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine="openpyxl") as writer:
                     df_consolidado.to_excel(writer, index=False, sheet_name="Consolidado")
                 excel_data = output.getvalue()
 
+                # Botón de Descarga
                 st.success("✅ ¡Procesamiento completado con éxito!")
                 st.download_button(
                     label="📥 Descargar Archivo Excel Consolidado Completo",
                     data=excel_data,
-                    file_name="consolidado_kobo_meteorologico.xlsx",
+                    file_name="consolidado_kobo_valido.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                 )
 
-                st.subheader("📋 Vista Previa de Datos Consolidados")
-                st.dataframe(df_consolidado.head(10), use_container_width=True)
+                # ----------------------------------------------------
+                # PASO 5: REPORTE DETALLADO DE CONTROL DE CALIDAD
+                # ----------------------------------------------------
+                st.subheader("🚨 Reporte Detallado de Control de Calidad")
 
-    else:
-        st.info("Por favor sube los tres archivos CSV en el menú lateral.")
-else:
-    st.info("👈 Comienza subiendo tus archivos CSV en el panel lateral.")
+                inc_tmin = df_unificado[
+                    (df_unificado["tmin"].notnull())
+                    & (df_unificado["tseca"].notnull())
+                    & (df_unificado["tmin"] >= df_unificado["tseca"])
+                ]
+                inc_tmax = df_unificado[
+                    (df_unificado["tmax"].notnull())
+                    & (df_unificado["tseca"].notnull())
+                    & (df_unificado["tmax"] <= df_unificado["tseca"])
+                ]
+                ex_lluvia = df_unificado[df_unificado["lluvia"] > 40]
+                ex_tmax = df_unificado[df_unificado["tmax"] > 42]
+                ex_tmin = df_unificado[df_unificado["tmin"] < 0]
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.metric("Alertas de Lluvia (>40mm)", len(ex_lluvia))
+                with col2:
+                    st.metric(
+                        "Alertas de Temperatura (Inconsistencias/Extremas)",
+                        len(inc_tmin) + len(inc_tmax) + len(ex_tmax) + len(ex_tmin),
+                    )
+
+                with st.expander(
+                    f"⚠️ Inconsistencias Físicas: Tmin >= Tseca ({len(inc_tmin)} casos)",
+                    expanded=True,
+                ):
+                    if not inc_tmin.empty:
+                        st.dataframe(
+                            inc_tmin[["estacion_std", "fecha_str", "hora_std
