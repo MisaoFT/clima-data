@@ -14,13 +14,14 @@ st.set_page_config(
 )
 
 st.title("🌤️ Auditoría de calidad de datos diarios preliminares y unificación de archivos - INSIVUMEH")
-st.markdown(
-    "Plantilla base de procesamiento: Sube tus archivos de KoboToolbox: Estaciones climaticas, sinópticas y automáticas para: "
-    "unificar variables meteorológicas, formatear selecciones múltiples de fenómenos, "
-    "aplicar ajustes de formato y escala (octas 0-8, rumbo vectorial, humedad entera) "
-    "visualizar las alertas de temperatura y lluvia"
-    " auditar inconsistencias físicas y descargar el archivo"
-)
+st.markdown("""
+**Plantilla base de procesamiento**: Sube tus archivos de KoboToolbox (Estaciones climáticas, sinópticas y automáticas) para:
+* Unificar variables meteorológicas.
+* Formatear selecciones múltiples de fenómenos.
+* Aplicar ajustes de formato y escala (octas 0-8, rumbo vectorial, humedad entera).
+* Visualizar las alertas de temperatura y lluvia.
+* Auditar inconsistencias físicas y descargar el archivo.
+""")
 
 # Panel lateral
 st.sidebar.header("📁 Carga de archivos en formato .CSV")
