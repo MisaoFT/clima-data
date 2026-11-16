@@ -15,25 +15,17 @@ st.set_page_config(
 
 st.title("📊 Documento de dato diario preliminar (documento_drive)")
 st.markdown(
-    "Sube tu archivo consolidado (`consolidado_kobo_valido.xlsx` o `dato_diario_unificado_kobo.xlsx`) "
-    "para transformarlo en la matriz oficial `dato_diario_preliminar` para cualquier rango de días (semanal o mensual)."
+    "Sube tu archivo consolidado (`consolidado_kobo_valido.xlsx`) "
+    "para transformarlo en la matriz oficial `dato_diario_preliminar` con las 67 estaciones."
 )
 
 # ==========================================
-# PANEL LATERAL: CONFIGURACIÓN
+# PANEL LATERAL: ARCHIVO DE ENTRADA
 # ==========================================
 st.sidebar.header("📁 Archivo de entrada")
 file_excel = st.sidebar.file_uploader(
     "Sube tu archivo Excel consolidado",
     type=["xlsx", "xls"]
-)
-
-st.sidebar.markdown("---")
-st.sidebar.header("⚙️ Ajuste de Lluvia")
-restar_dia_lluvia_en_matriz = st.sidebar.checkbox(
-    "Restar 1 día a la lluvia aquí en la Matriz",
-    value=False,
-    help="Déjalo DESMARCADO si usaste el Script 1 actualizado (que ya alinea la lluvia de las 07:00 al día anterior). Márcalo solo si subes un consolidado antiguo sin desplazamiento."
 )
 
 # Estructura oficial de estaciones INSIVUMEH
@@ -102,12 +94,11 @@ def parsear_fecha_consolidado(serie_fecha: pd.Series) -> pd.Series:
     return dt_iso.fillna(dt_lat).fillna(dt_mix).dt.normalize()
 
 
-def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame, restar_dia_lluvia: bool = False) -> pd.DataFrame:
-    """Transforma la tabla de consolidado plano a la matriz final de estaciones por fecha/variable."""
+def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame) -> pd.DataFrame:
+    """Transforma el consolidado plano a la matriz oficial de 67 estaciones por fecha/variable."""
     df_consolidado = df_consolidado.copy()
     df_consolidado["Fecha_dt"] = parsear_fecha_consolidado(df_consolidado["Fecha"])
 
-    # Diccionario normalizado para emparejar estaciones (incluye alias conocidos)
     dict_norm = {normalizar_texto(k): k for k in ESTACIONES_ESTRUCTURA.keys()}
     dict_norm["AMATITLAN 2"] = "AMATITLAN"
     dict_norm["CHINIQUE.1"] = "CHINIQUE"
@@ -117,7 +108,7 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame, restar_dia_ll
     dict_norm["PANZOS PHC"] = "PANZÓS PHC ALTAVERAPAZ"
 
     registros_largos = []
-    fechas_presentes = set()
+    fechas_con_datos = set()
 
     for _, row in df_consolidado.iterrows():
         est_raw = normalizar_texto(str(row.get("Estacion", "")))
@@ -133,23 +124,15 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame, restar_dia_ll
         if est_oficial is None or pd.isnull(fecha_obs):
             continue
 
-        fechas_presentes.add(fecha_obs)
-
         for col_orig, var_drive in MAPEO_VARIABLES.items():
             if col_orig in row and pd.notnull(row[col_orig]):
                 val = pd.to_numeric(row[col_orig], errors="coerce")
                 if pd.isnull(val):
                     continue
 
-                if var_drive == "LLUVIA" and restar_dia_lluvia:
-                    fecha_aplicada = fecha_obs - pd.Timedelta(days=1)
-                else:
-                    fecha_aplicada = fecha_obs
-
-                fechas_presentes.add(fecha_aplicada)
-
+                fechas_con_datos.add(fecha_obs)
                 registros_largos.append({
-                    "fecha_dt": fecha_aplicada,
+                    "fecha_dt": fecha_obs,
                     "variable": var_drive,
                     "estacion": est_oficial,
                     "valor": val
@@ -160,8 +143,7 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame, restar_dia_ll
 
     df_largo = pd.DataFrame(registros_largos)
 
-    # Agrupar duplicados de estación/fecha/variable:
-    # Para LLUVIA sumamos si hubo registros divididos; para el resto tomamos el promedio válido
+    # Agrupar posibles duplicados de estación/fecha/variable
     df_lluv = df_largo[df_largo["variable"] == "LLUVIA"].groupby(
         ["fecha_dt", "variable", "estacion"], as_index=False
     )["valor"].sum()
@@ -172,9 +154,8 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame, restar_dia_ll
 
     df_largo_clean = pd.concat([df_lluv, df_otras], ignore_index=True)
 
-    # Crear esqueleto completo de (todas las fechas del periodo x todas las variables con datos)
-    # Así nunca desaparece la fila de LLUVIA en ningún día de la semana o mes
-    todas_fechas = sorted(list(fechas_presentes))
+    # Construir esqueleto solo para fechas que efectivamente tienen al menos 1 dato válido
+    todas_fechas = sorted(list(fechas_con_datos))
     vars_activas = [v for v in VARIABLES_ORDENADAS if v in df_largo_clean["variable"].unique()]
     if "LLUVIA" not in vars_activas:
         vars_activas.insert(0, "LLUVIA")
@@ -193,7 +174,6 @@ def transformar_consolidado_a_matriz(df_consolidado: pd.DataFrame, restar_dia_ll
     matriz_pivot["fecha"] = matriz_pivot["fecha_dt"].dt.strftime("%d/%m/%Y")
     matriz_pivot = matriz_pivot.drop(columns=["fecha_dt"])
 
-    # Asegurar las 67 estaciones oficiales en su orden exacto
     for est in ESTACIONES_ESTRUCTURA.keys():
         if est not in matriz_pivot.columns:
             matriz_pivot[est] = np.nan
@@ -209,26 +189,27 @@ if file_excel:
     with st.spinner("Leyendo archivo consolidado..."):
         df_cons = pd.read_excel(file_excel)
         st.success("¡Archivo cargado correctamente!")
-        st.info(f"Registros encontrados: **{len(df_cons)}** filas.")
+        st.info(f"Registros encontrados en el consolidado: **{len(df_cons)}** filas.")
 
         if st.button("🚀 Generar documento diario"):
-            with st.spinner("Generando matriz oficial y alineando serie semanal/mensual..."):
-                matriz_final = transformar_consolidado_a_matriz(
-                    df_cons,
-                    restar_dia_lluvia=restar_dia_lluvia_en_matriz
-                )
+            with st.spinner("Generando matriz oficial..."):
+                matriz_final = transformar_consolidado_a_matriz(df_cons)
 
                 st.success("✅ ¡Matriz `dato_diario_preliminar` generada exitosamente!")
 
-                # Auditoría rápida de lluvia por día en la matriz
-                with st.expander("🌧️ Verificar cobertura de LLUVIA por fecha en la Matriz", expanded=True):
+                # Auditoría detallada de lluvia por fecha
+                with st.expander("🌧️ Cobertura de LLUVIA por fecha en la Matriz", expanded=True):
                     df_check_lluvia = matriz_final[matriz_final["variable"] == "LLUVIA"].copy()
                     est_cols = list(ESTACIONES_ESTRUCTURA.keys())
-                    df_check_lluvia["Estaciones_con_dato"] = df_check_lluvia[est_cols].notnull().sum(axis=1)
-                    df_check_lluvia["Estaciones_con_lluvia_>0"] = (df_check_lluvia[est_cols] > 0).sum(axis=1)
+                    df_check_lluvia["Total_Estaciones_con_Lluvia"] = df_check_lluvia[est_cols].notnull().sum(axis=1)
+                    df_check_lluvia["Estaciones_con_Lluvia_>0mm"] = (df_check_lluvia[est_cols] > 0).sum(axis=1)
                     st.dataframe(
-                        df_check_lluvia[["fecha", "Estaciones_con_dato", "Estaciones_con_lluvia_>0"]],
+                        df_check_lluvia[["fecha", "Total_Estaciones_con_Lluvia", "Estaciones_con_Lluvia_>0mm"]],
                         use_container_width=True
+                    )
+                    st.caption(
+                        "💡 Nota: Si a partir de cierta fecha ves ~23 estaciones en lugar de ~50, "
+                        "verifica que el CSV de Climáticas Convencionales descargado de Kobo incluya esos días."
                     )
 
                 st.subheader("📋 Vista previa del documento")
