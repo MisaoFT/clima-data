@@ -13,12 +13,12 @@ portada = st.Page(
 # BLOQUE 1: Datos Diarios Preliminares
 extraccion_diario = st.Page(
     "pages/6_extraccion_dato_diario_ICC_.py", 
-    title="Extracción diaria ICC - REDMET", 
+    title="PRUEBAS Extracción KOBO ICC - REDMET", 
     icon="📆"
 )
 ICC_diario = st.Page(
     "pages/11_ICC_dato_diario_p.py", 
-    title="PRUEBA Extracción diaria ICC - REDMET", 
+    title="Extracción diaria ICC - REDMET", 
     icon="📆"
 )
 
