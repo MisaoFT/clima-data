@@ -15,26 +15,27 @@ st.set_page_config(
 
 st.title("🌤️ Auditoría de Calidad y Consolidación Meteorológica INSIVUMEH")
 st.markdown(
-    "Plantilla base de procesamiento: sube tus archivos de KoboToolbox para "
-    "unificar variables meteorológicas con corrección horaria Guatemala (UTC-6), "
-    "alineación de lluvia climatológica (07:00 -> día anterior) y control de calidad."
+    "Procesamiento semanal y mensual de formularios KoboToolbox: "
+    "corrección horaria Guatemala (UTC-6), alineación de lluvia climatológica "
+    "(07:00 → día anterior), soporte multi-versión y control de calidad físico."
 )
 
-# Panel lateral
+# ==========================================
+# PANEL LATERAL: CARGA Y CONFIGURACIÓN
+# ==========================================
 st.sidebar.header("📁 Carga de Archivos CSV")
 uploaded_files = st.sidebar.file_uploader(
-    "Selecciona tus archivos de Kobo",
+    "Selecciona tus archivos de Kobo (Automáticas, Climáticas, Sinópticas)",
     type=["csv"],
     accept_multiple_files=True,
 )
 
-# Opciones de alineación de fecha en barra lateral
 st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Configuración Horaria")
 desplazar_lluvia_en_consolidado = st.sidebar.checkbox(
     "Asignar lluvia de las 07:00 al día anterior en el Consolidado",
     value=True,
-    help="Recomendado: Alinea la lluvia medida a las 07:00 AM con la fecha meteorológica real (ayer), igualándola con TMAX y TMIN."
+    help="Alinea la lluvia medida a las 07:00 AM con la fecha meteorológica real (ayer), igualándola con TMAX y TMIN."
 )
 
 MAPEO_CODIGOS_FENOMENOS = {
@@ -52,44 +53,60 @@ MAPEO_CODIGOS_FENOMENOS = {
 }
 
 
-def purgar_columnas_one_hot(df: pd.DataFrame, start_idx: int, end_idx: int) -> pd.DataFrame:
-    """Elimina columnas desglosadas (One-Hot) creadas por KoboToolbox."""
-    if len(df.columns) > end_idx:
-        cols_to_drop = df.columns[start_idx : end_idx + 1]
-        return df.drop(columns=cols_to_drop)
-    return df
+def limpiar_columnas_kobo(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Limpia espacios en nombres de columnas y elimina únicamente las columnas
+    desglosadas One-Hot (que contienen '/') sin depender de posiciones fijas.
+    Esto evita perder columnas cuando se descargan semanas o meses con múltiples versiones.
+    """
+    df.columns = [str(c).strip() for c in df.columns]
+    cols_validas = [c for c in df.columns if "/" not in c]
+    return df[cols_validas].copy()
 
 
 def extraer_fecha_local_gt(serie_timestamps: pd.Series) -> pd.Series:
     """
-    Convierte timestamps ISO de Kobo (ya sea con -06:00 o en UTC Z/+00:00)
-    a la hora local exacta de Guatemala (America/Guatemala, UTC-6) antes de extraer la fecha.
+    Convierte timestamps ISO de Kobo (con -06:00 o en UTC Z/+00:00)
+    a hora local exacta de Guatemala (America/Guatemala, UTC-6).
     """
     dt_utc = pd.to_datetime(serie_timestamps, errors="coerce", utc=True)
     dt_gt = dt_utc.dt.tz_convert("America/Guatemala")
     return dt_gt.dt.tz_localize(None)
 
 
-def cargar_y_extraer_fecha(file_bytes) -> pd.DataFrame:
-    """Lectura resiliente probando delimitadores ';' y ',' con rescate horario UTC-6."""
+def cargar_csv_resiliente(file_bytes) -> pd.DataFrame:
+    """Lectura resiliente probando codificaciones (UTF-8 / Latin-1) y delimitadores (';' / ',')."""
     df = None
-    for sep_test in [";", ","]:
-        try:
-            df_temp = pd.read_csv(
-                io.BytesIO(file_bytes), sep=sep_test, on_bad_lines="skip"
-            )
-            if len(df_temp.columns) > 2:
-                df = df_temp
-                break
-        except Exception:
-            pass
+    for enc in ["utf-8-sig", "utf-8", "latin1"]:
+        for sep_test in [";", ","]:
+            try:
+                df_temp = pd.read_csv(
+                    io.BytesIO(file_bytes),
+                    sep=sep_test,
+                    encoding=enc,
+                    on_bad_lines="skip",
+                    dtype=str,  # Leer como texto primero evita corrupción de fechas y ceros
+                )
+                if len(df_temp.columns) > 2:
+                    df = df_temp
+                    break
+            except Exception:
+                continue
+        if df is not None:
+            break
 
     if df is None:
         df = pd.read_csv(
-            io.BytesIO(file_bytes), sep=None, engine="python", on_bad_lines="skip"
+            io.BytesIO(file_bytes),
+            sep=None,
+            engine="python",
+            on_bad_lines="skip",
+            dtype=str,
         )
 
-    # Rescate de fecha usando conversión real a zona horaria Guatemala (UTC-6)
+    df = limpiar_columnas_kobo(df)
+
+    # Extraer timestamp local Guatemala (UTC-6)
     if "start" in df.columns:
         df["start_gt_dt"] = extraer_fecha_local_gt(df["start"])
     elif "_submission_time" in df.columns:
@@ -98,6 +115,63 @@ def cargar_y_extraer_fecha(file_bytes) -> pd.DataFrame:
         df["start_gt_dt"] = pd.NaT
 
     return df
+
+
+def parsear_fechas_flexible(serie_fechas: pd.Series) -> pd.Series:
+    """
+    Soporta múltiples formatos de fecha que aparecen en exportaciones semanales/mensuales:
+    YYYY-MM-DD, DD/MM/YYYY, YYYY/MM/DD, DD-MM-YYYY y timestamps completos.
+    """
+    s_clean = serie_fechas.astype(str).str.strip()
+    s_clean = s_clean.replace({"nan": np.nan, "None": np.nan, "NaT": np.nan, "": np.nan})
+
+    # Extraer solo la parte de fecha si trae hora pegada (ej. '2026-11-03 07:00:00')
+    s_date_part = s_clean.str.split(" ").str[0].str.split("T").str[0]
+
+    # 1. Formato ISO estándar YYYY-MM-DD
+    dt_iso = pd.to_datetime(s_date_part, format="%Y-%m-%d", errors="coerce")
+    # 2. Formato Latinoamericano DD/MM/YYYY
+    dt_lat = pd.to_datetime(s_date_part, format="%d/%m/%Y", errors="coerce")
+    # 3. Formato con barras YYYY/MM/DD
+    dt_iso_slash = pd.to_datetime(s_date_part, format="%Y/%m/%d", errors="coerce")
+    # 4. Formato con guiones DD-MM-YYYY
+    dt_lat_dash = pd.to_datetime(s_date_part, format="%d-%m-%Y", errors="coerce")
+    # 5. Fallback general con dayfirst=True
+    dt_mixed = pd.to_datetime(s_date_part, dayfirst=True, errors="coerce")
+
+    return (
+        dt_iso.fillna(dt_lat)
+        .fillna(dt_iso_slash)
+        .fillna(dt_lat_dash)
+        .fillna(dt_mixed)
+        .dt.normalize()
+    )
+
+
+def limpiar_numero_resiliente(serie: pd.Series) -> pd.Series:
+    """Convierte a numérico aceptando tanto punto (12.5) como coma decimal (12,5)."""
+    s = serie.astype(str).str.strip().str.replace(",", ".", regex=False)
+    s = s.replace({"nan": np.nan, "None": np.nan, "": np.nan, "NaN": np.nan})
+    return pd.to_numeric(s, errors="coerce")
+
+
+def normalizar_hora(serie_hora: pd.Series) -> pd.Series:
+    """Estandariza formatos de hora ('7_00', '7:00', '07:00:00', '7') a '07:00', '13:00', '18:00'."""
+    def _fmt_h(val):
+        if pd.isnull(val):
+            return ""
+        s = str(val).strip().replace("_", ":")
+        if s in ["nan", "None", ""]:
+            return ""
+        # Si viene como '07:00:00', tomar '07:00'
+        parts = s.split(":")
+        if len(parts) >= 2 and parts[0].isdigit():
+            return f"{int(parts[0]):02d}:{parts[1][:2]}"
+        if s.isdigit():
+            return f"{int(s):02d}:00"
+        return s
+
+    return serie_hora.apply(_fmt_h)
 
 
 def parsear_fenomenos_multiselect(serie_fenomenos: pd.Series) -> str:
@@ -209,6 +283,26 @@ def calcular_registro_unico_diario(p_list, hr_list, t_seca_media, nub_list, v_di
     }
 
 
+def seleccionar_columnas_seguro(df_raw: pd.DataFrame, mapa_columnas: dict) -> pd.DataFrame:
+    """
+    Extrae columnas buscando coincidencias exactas o sin dos puntos finales,
+    sin depender del orden de las columnas en el CSV.
+    """
+    cols_lower_map = {c.lower().rstrip(":"): c for c in df_raw.columns}
+    resultado = pd.DataFrame(index=df_raw.index)
+
+    for col_destino, col_origen in mapa_columnas.items():
+        if col_origen in df_raw.columns:
+            resultado[col_destino] = df_raw[col_origen]
+        else:
+            clave_norm = col_origen.lower().rstrip(":")
+            if clave_norm in cols_lower_map:
+                resultado[col_destino] = df_raw[cols_lower_map[clave_norm]]
+            else:
+                resultado[col_destino] = np.nan
+    return resultado
+
+
 if uploaded_files:
     file_auto, file_clim, file_sino = None, None, None
 
@@ -227,111 +321,137 @@ if uploaded_files:
     st.sidebar.write(f"- **Sinópticas:** {file_sino.name if file_sino else '❌'}")
 
     if file_auto and file_clim and file_sino:
+        # ----------------------------------------------------
+        # PASO 1: CARGA RESILIENTE (SIN BORRADO POSICIONAL)
+        # ----------------------------------------------------
+        raw_auto = cargar_csv_resiliente(file_auto.getvalue())
+        raw_clim = cargar_csv_resiliente(file_clim.getvalue())
+        raw_sino = cargar_csv_resiliente(file_sino.getvalue())
+
+        # PASO 2: HOMOLOGACIÓN POR NOMBRE DE COLUMNA
+        df_auto = seleccionar_columnas_seguro(
+            raw_auto,
+            {
+                "estacion": "Nombre de la estación",
+                "fecha_manual": "Fecha",
+                "start_gt_dt": "start_gt_dt",
+                "hora": "Hora",
+                "lluvia": "Lluvia total:",
+                "nub": "Nubosidad",
+                "dir_viento": "Direccion del viento:",
+                "vel_viento": "Velocidad de viento",
+                "eva_tanque": "Evaporacion de Tanque",
+                "fenomenos": "Fenomenos",
+            },
+        )
+        for c in ["tseca", "tmin", "tmax", "hum_rel", "pre_atmos", "eva_piche", "bri_solar", "rad_solar", "tsuelo_5", "tsuelo_50", "tsuelo_100"]:
+            df_auto[c] = np.nan
+
+        df_clim = seleccionar_columnas_seguro(
+            raw_clim,
+            {
+                "estacion": "Nombre de la Estacion:",
+                "fecha_manual": "Fecha",
+                "start_gt_dt": "start_gt_dt",
+                "hora": "Hora",
+                "tseca": "Temperatura Seca:",
+                "tmin": "Temperatura minima:",
+                "tmax": "Temperatura maxima:",
+                "lluvia": "Lluvia total:",
+                "hum_rel": "Humedad Relativa:",
+                "pre_atmos": "Presion Atmosferica",
+                "nub": "Nubosidad",
+                "dir_viento": "Direccion del viento:",
+                "vel_viento": "Velocidad de viento",
+                "eva_tanque": "Evaporacion de Tanque",
+                "eva_piche": "Evaporacion de Piche",
+                "bri_solar": "Brillo Solar",
+                "tsuelo_5": "Temperatura Suelo 5cm",
+                "tsuelo_50": "Temperatura Suelo 50cm",
+                "tsuelo_100": "Temperatura Suelo 100cm",
+                "fenomenos": "Fenomenos",
+            },
+        )
+        df_clim["rad_solar"] = np.nan
+
+        df_sino = seleccionar_columnas_seguro(
+            raw_sino,
+            {
+                "estacion": "estacion",
+                "fecha_manual": "Fecha",
+                "start_gt_dt": "start_gt_dt",
+                "hora": "Hora",
+                "tseca": "tseca",
+                "tmin": "tmin",
+                "tmax": "tmax",
+                "lluvia": "lluvia",
+                "hum_rel": "hum_rel",
+                "pre_atmos": "pre_atmos",
+                "nub": "nub",
+                "dir_viento": "dir_viento",
+                "vel_viento": "vel_viento",
+                "eva_tanque": "eva_tan",
+                "bri_solar": "bri_solar",
+                "rad_solar": "rad_solar",
+                "tsuelo_100": "tsuelo_100",
+                "fenomenos": "Fenomenos",
+            },
+        )
+        for c in ["eva_piche", "tsuelo_5", "tsuelo_50"]:
+            df_sino[c] = np.nan
+
+        df_unificado = pd.concat([df_auto, df_clim, df_sino], ignore_index=True)
+
+        # PASO 3: ESTANDARIZACIÓN HORARIA Y DE FECHAS
+        df_unificado["estacion_std"] = (
+            df_unificado["estacion"]
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .str.replace("_", " ")
+        )
+        df_unificado = df_unificado[
+            ~df_unificado["estacion_std"].isin(["NAN", "NONE", ""])
+        ].copy()
+
+        df_unificado["hora_std"] = normalizar_hora(df_unificado["hora"])
+        df_unificado["f_manual_dt"] = parsear_fechas_flexible(df_unificado["fecha_manual"])
+        df_unificado["f_start_gt_date"] = pd.to_datetime(
+            df_unificado["start_gt_dt"], errors="coerce"
+        ).dt.normalize()
+
+        # Rescate de envíos tardíos (turno 18:00 enviado de madrugada GT)
+        mask_tarde_18 = (
+            df_unificado["f_manual_dt"].isnull()
+            & (df_unificado["hora_std"] == "18:00")
+            & (pd.to_datetime(df_unificado["start_gt_dt"], errors="coerce").dt.hour < 8)
+        )
+        df_unificado.loc[mask_tarde_18, "f_start_gt_date"] -= pd.Timedelta(days=1)
+
+        # Prioridad: Fecha manual -> Fecha timestamp local GT (nunca propagar fechas entre días distintos)
+        df_unificado["fecha_dt"] = df_unificado["f_manual_dt"].fillna(
+            df_unificado["f_start_gt_date"]
+        )
+
+        # Filtro opcional de rango de fechas (ideal para revisar semanas o meses)
+        fechas_validas = df_unificado["fecha_dt"].dropna()
+        if not fechas_validas.empty:
+            min_f = fechas_validas.min().date()
+            max_f = fechas_validas.max().date()
+            st.sidebar.markdown("---")
+            st.sidebar.header("📅 Rango de Fechas Detectado")
+            st.sidebar.info(f"Datos disponibles: **{min_f}** al **{max_f}**")
+            rango_seleccionado = st.sidebar.date_input(
+                "Filtrar periodo a consolidar:",
+                value=(min_f, max_f),
+                min_value=min_f,
+                max_value=max_f,
+            )
+        else:
+            rango_seleccionado = None
+
         if st.button("🚀 Procesar Datos y Generar Reporte"):
-            with st.spinner("Procesando archivos, corrigiendo zona horaria UTC-6 y ejecutando control de calidad..."):
-
-                # PASO 1: CARGA Y PURGA DE COLUMNAS ONE-HOT
-                raw_auto = cargar_y_extraer_fecha(file_auto.getvalue())
-                raw_auto = purgar_columnas_one_hot(raw_auto, 3, 23)
-
-                raw_clim = cargar_y_extraer_fecha(file_clim.getvalue())
-                raw_clim = purgar_columnas_one_hot(raw_clim, 3, 55)
-
-                raw_sino = cargar_y_extraer_fecha(file_sino.getvalue())
-                raw_sino = purgar_columnas_one_hot(raw_sino, 3, 18)
-
-                # PASO 2: HOMOLOGACIÓN Y SELECCIÓN DE COLUMNAS
-                df_auto = raw_auto.reindex(
-                    columns=[
-                        "Nombre de la estación", "Fecha", "start_gt_dt", "Hora",
-                        "Lluvia total:", "Nubosidad", "Direccion del viento:",
-                        "Velocidad de viento", "Evaporacion de Tanque", "Fenomenos"
-                    ]
-                ).copy()
-                df_auto.columns = [
-                    "estacion", "fecha_manual", "start_gt_dt", "hora",
-                    "lluvia", "nub", "dir_viento", "vel_viento", "eva_tanque", "fenomenos"
-                ]
-                for c in ["tseca", "tmin", "tmax", "hum_rel", "pre_atmos", "eva_piche", "bri_solar", "rad_solar", "tsuelo_5", "tsuelo_50", "tsuelo_100"]:
-                    df_auto[c] = np.nan
-
-                df_clim = raw_clim.reindex(
-                    columns=[
-                        "Nombre de la Estacion:", "Fecha", "start_gt_dt", "Hora",
-                        "Temperatura Seca:", "Temperatura minima:", "Temperatura maxima:",
-                        "Lluvia total:", "Humedad Relativa:", "Presion Atmosferica",
-                        "Nubosidad", "Direccion del viento:", "Velocidad de viento",
-                        "Evaporacion de Tanque", "Evaporacion de Piche", "Brillo Solar",
-                        "Temperatura Suelo 5cm", "Temperatura Suelo 50cm", "Temperatura Suelo 100cm", "Fenomenos"
-                    ]
-                ).copy()
-                df_clim.columns = [
-                    "estacion", "fecha_manual", "start_gt_dt", "hora",
-                    "tseca", "tmin", "tmax", "lluvia", "hum_rel", "pre_atmos",
-                    "nub", "dir_viento", "vel_viento", "eva_tanque", "eva_piche",
-                    "bri_solar", "tsuelo_5", "tsuelo_50", "tsuelo_100", "fenomenos"
-                ]
-                df_clim["rad_solar"] = np.nan
-
-                df_sino = raw_sino.reindex(
-                    columns=[
-                        "estacion", "Fecha", "start_gt_dt", "Hora",
-                        "tseca", "tmin", "tmax", "lluvia", "hum_rel", "pre_atmos",
-                        "nub", "dir_viento", "vel_viento", "eva_tan", "bri_solar",
-                        "rad_solar", "tsuelo_100", "Fenomenos"
-                    ]
-                ).copy()
-                df_sino.columns = [
-                    "estacion", "fecha_manual", "start_gt_dt", "hora",
-                    "tseca", "tmin", "tmax", "lluvia", "hum_rel", "pre_atmos",
-                    "nub", "dir_viento", "vel_viento", "eva_tanque", "bri_solar",
-                    "rad_solar", "tsuelo_100", "fenomenos"
-                ]
-                for c in ["eva_piche", "tsuelo_5", "tsuelo_50"]:
-                    df_sino[c] = np.nan
-
-                df_unificado = pd.concat([df_auto, df_clim, df_sino], ignore_index=True)
-
-                # PASO 3: ESTANDARIZACIÓN HORARIA Y RESCATE DE ENVÍOS TARDÍOS
-                df_unificado["estacion_std"] = (
-                    df_unificado["estacion"]
-                    .astype(str)
-                    .str.strip()
-                    .str.upper()
-                    .str.replace("_", " ")
-                )
-
-                df_unificado["hora_std"] = (
-                    df_unificado["hora"].astype(str).str.replace("_", ":").str.strip()
-                )
-                df_unificado["hora_std"] = df_unificado["hora_std"].apply(
-                    lambda x: f"0{x}" if len(x) == 4 and x.endswith(":00") else x
-                )
-
-                def parsear_fechas_seguro(serie_fechas):
-                    s_clean = serie_fechas.astype(str).str.strip().str[:10]
-                    dt_iso = pd.to_datetime(s_clean, format="%Y-%m-%d", errors="coerce")
-                    dt_lat = pd.to_datetime(s_clean, format="%d/%m/%Y", errors="coerce")
-                    return dt_iso.fillna(dt_lat)
-
-                df_unificado["f_manual_dt"] = parsear_fechas_seguro(df_unificado["fecha_manual"])
-                
-                # Fecha derivada del timestamp local Guatemala (UTC-6)
-                df_unificado["f_start_gt_date"] = df_unificado["start_gt_dt"].dt.normalize()
-
-                # Si no hay fecha manual y el observador reportó turno de las 18:00 después de medianoche (00:00 a 08:00 GT)
-                mask_tarde_18 = (
-                    df_unificado["f_manual_dt"].isnull()
-                    & (df_unificado["hora_std"] == "18:00")
-                    & (df_unificado["start_gt_dt"].dt.hour < 8)
-                )
-                df_unificado.loc[mask_tarde_18, "f_start_gt_date"] -= pd.Timedelta(days=1)
-
-                # Prioridad: Fecha manual del observador -> Fecha rescatada UTC-6 -> ffill/bfill
-                df_unificado["fecha_dt"] = df_unificado["f_manual_dt"].fillna(df_unificado["f_start_gt_date"])
-                df_unificado["fecha_dt"] = df_unificado.groupby("estacion_std")["fecha_dt"].transform(
-                    lambda x: x.ffill().bfill()
-                )
+            with st.spinner("Procesando periodo seleccionado y ejecutando control de calidad..."):
 
                 numeric_cols = [
                     "tseca", "tmin", "tmax", "lluvia", "hum_rel", "pre_atmos",
@@ -339,22 +459,37 @@ if uploaded_files:
                     "bri_solar", "rad_solar", "tsuelo_5", "tsuelo_50", "tsuelo_100"
                 ]
                 for col in numeric_cols:
-                    df_unificado[col] = pd.to_numeric(df_unificado[col], errors="coerce")
+                    df_unificado[col] = limpiar_numero_resiliente(df_unificado[col])
 
                 # PASO 3.5: ALINEACIÓN CLIMATOLÓGICA DE LLUVIA (07:00 -> DÍA ANTERIOR)
-                # Separamos la lluvia de las 07:00 para asignarla a su fecha meteorológica real (ayer)
+                # Nota: Calculamos la lluvia desplazada ANTES de filtrar el rango de fechas
+                # para no perder la lluvia del último día (que viene en las 07:00 del día siguiente).
                 df_lluvia = df_unificado[["estacion_std", "fecha_dt", "hora_std", "lluvia"]].copy()
-                df_lluvia = df_lluvia[df_lluvia["lluvia"].notnull()]
+                df_lluvia = df_lluvia[df_lluvia["lluvia"].notnull() & df_lluvia["fecha_dt"].notnull()]
                 if desplazar_lluvia_en_consolidado:
-                    # La lluvia reportada en el turno de las 07:00 corresponde al acumulado de ayer
                     mask_07 = df_lluvia["hora_std"] == "07:00"
-                    df_lluvia.loc[mask_07, "fecha_dt"] = df_lluvia.loc[mask_07, "fecha_dt"] - pd.Timedelta(days=1)
+                    df_lluvia.loc[mask_07, "fecha_dt"] = (
+                        df_lluvia.loc[mask_07, "fecha_dt"] - pd.Timedelta(days=1)
+                    )
 
                 lluvia_agrupada = (
                     df_lluvia.groupby(["estacion_std", "fecha_dt"])["lluvia"]
                     .sum(min_count=1)
                     .to_dict()
                 )
+
+                # Aplicar filtro de rango de fechas si el usuario seleccionó inicio y fin
+                if isinstance(rango_seleccionado, tuple) and len(rango_seleccionado) == 2:
+                    f_ini = pd.Timestamp(rango_seleccionado[0])
+                    f_fin = pd.Timestamp(rango_seleccionado[1])
+                    df_unificado = df_unificado[
+                        (df_unificado["fecha_dt"] >= f_ini)
+                        & (df_unificado["fecha_dt"] <= f_fin)
+                    ].copy()
+                    lluvia_agrupada = {
+                        k: v for k, v in lluvia_agrupada.items()
+                        if f_ini <= k[1] <= f_fin
+                    }
 
                 def fmt_fecha(dt):
                     return dt.strftime("%Y-%m-%d") if pd.notnull(dt) else "Fecha Nula"
@@ -363,18 +498,28 @@ if uploaded_files:
 
                 # PASO 4: CONSOLIDACIÓN DIARIA
                 registros_consolidados = []
-                # Incluimos todas las combinaciones de (estacion, fecha) tanto de observaciones como de lluvias desplazadas
-                claves_obs = set(zip(df_unificado["estacion_std"], df_unificado["fecha_dt"]))
+                claves_obs = set(
+                    zip(
+                        df_unificado[df_unificado["fecha_dt"].notnull()]["estacion_std"],
+                        df_unificado[df_unificado["fecha_dt"].notnull()]["fecha_dt"],
+                    )
+                )
                 claves_lluvia = set(lluvia_agrupada.keys())
                 todas_las_claves = sorted(
-                    [k for k in (claves_obs | claves_lluvia) if pd.notnull(k[1])],
-                    key=lambda x: (x[0], x[1])
+                    list(claves_obs | claves_lluvia),
+                    key=lambda x: (x[0], x[1]),
                 )
 
-                grupos_dict = {k: g for k, g in df_unificado.groupby(["estacion_std", "fecha_dt"], dropna=False)}
+                grupos_dict = {
+                    k: g
+                    for k, g in df_unificado.groupby(["estacion_std", "fecha_dt"], dropna=False)
+                    if pd.notnull(k[1])
+                }
 
                 for estacion, fecha in todas_las_claves:
-                    group = grupos_dict.get((estacion, fecha), pd.DataFrame(columns=df_unificado.columns))
+                    group = grupos_dict.get(
+                        (estacion, fecha), pd.DataFrame(columns=df_unificado.columns)
+                    )
 
                     if not group.empty:
                         t_07 = group[group["hora_std"] == "07:00"]["tseca"].values
@@ -395,16 +540,52 @@ if uploaded_files:
                         tmax_dia = group["tmax"].max()
 
                         g_07 = group[group["hora_std"] == "07:00"]
-                        eva_tanque_val = g_07["eva_tanque"].values[0] if not g_07.empty and pd.notnull(g_07["eva_tanque"].values[0]) else (group["eva_tanque"].dropna().iloc[0] if not group["eva_tanque"].dropna().empty else np.nan)
-                        eva_piche_val = g_07["eva_piche"].values[0] if not g_07.empty and pd.notnull(g_07["eva_piche"].values[0]) else (group["eva_piche"].dropna().iloc[0] if not group["eva_piche"].dropna().empty else np.nan)
+                        eva_tanque_val = (
+                            g_07["eva_tanque"].values[0]
+                            if not g_07.empty and pd.notnull(g_07["eva_tanque"].values[0])
+                            else (
+                                group["eva_tanque"].dropna().iloc[0]
+                                if not group["eva_tanque"].dropna().empty
+                                else np.nan
+                            )
+                        )
+                        eva_piche_val = (
+                            g_07["eva_piche"].values[0]
+                            if not g_07.empty and pd.notnull(g_07["eva_piche"].values[0])
+                            else (
+                                group["eva_piche"].dropna().iloc[0]
+                                if not group["eva_piche"].dropna().empty
+                                else np.nan
+                            )
+                        )
 
                         g_18 = group[group["hora_std"] == "18:00"]
-                        brillo_solar_val = g_18["bri_solar"].values[0] if not g_18.empty and pd.notnull(g_18["bri_solar"].values[0]) else group["bri_solar"].max()
-                        rad_solar_val = g_18["rad_solar"].values[0] if not g_18.empty and pd.notnull(g_18["rad_solar"].values[0]) else group["rad_solar"].max()
+                        brillo_solar_val = (
+                            g_18["bri_solar"].values[0]
+                            if not g_18.empty and pd.notnull(g_18["bri_solar"].values[0])
+                            else group["bri_solar"].max()
+                        )
+                        rad_solar_val = (
+                            g_18["rad_solar"].values[0]
+                            if not g_18.empty and pd.notnull(g_18["rad_solar"].values[0])
+                            else group["rad_solar"].max()
+                        )
 
-                        tsuelo_5_val = round(float(group["tsuelo_5"].dropna().mean()), 1) if not group["tsuelo_5"].dropna().empty else np.nan
-                        tsuelo_50_val = round(float(group["tsuelo_50"].dropna().mean()), 1) if not group["tsuelo_50"].dropna().empty else np.nan
-                        tsuelo_100_val = round(float(group["tsuelo_100"].dropna().mean()), 1) if not group["tsuelo_100"].dropna().empty else np.nan
+                        tsuelo_5_val = (
+                            round(float(group["tsuelo_5"].dropna().mean()), 1)
+                            if not group["tsuelo_5"].dropna().empty
+                            else np.nan
+                        )
+                        tsuelo_50_val = (
+                            round(float(group["tsuelo_50"].dropna().mean()), 1)
+                            if not group["tsuelo_50"].dropna().empty
+                            else np.nan
+                        )
+                        tsuelo_100_val = (
+                            round(float(group["tsuelo_100"].dropna().mean()), 1)
+                            if not group["tsuelo_100"].dropna().empty
+                            else np.nan
+                        )
 
                         fenomenos_val = parsear_fenomenos_multiselect(group["fenomenos"])
 
@@ -468,13 +649,18 @@ if uploaded_files:
                 ]
                 df_consolidado = df_consolidado.reindex(columns=columnas_ordenadas)
 
+                # Resumen del periodo procesado
+                st.success(
+                    f"✅ ¡Procesamiento completado! Se consolidaron **{len(df_consolidado)}** registros diarios "
+                    f"en **{df_consolidado['Estacion'].nunique()}** estaciones."
+                )
+
                 # Generar Excel
                 output = io.BytesIO()
                 with pd.ExcelWriter(output, engine="openpyxl") as writer:
                     df_consolidado.to_excel(writer, index=False, sheet_name="Consolidado")
                 excel_data = output.getvalue()
 
-                st.success("✅ ¡Procesamiento completado con ajuste horario Guatemala (UTC-6)!")
                 st.download_button(
                     label="📥 Descargar Archivo Excel Consolidado Completo",
                     data=excel_data,
@@ -482,6 +668,20 @@ if uploaded_files:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
                 )
+
+                # Vista previa rápida de cobertura por fecha
+                with st.expander("📊 Cobertura de Registros por Fecha (Auditoría Semanal/Mensual)", expanded=False):
+                    resumen_fechas = (
+                        df_consolidado.groupby("Fecha")
+                        .agg(
+                            Estaciones=("Estacion", "nunique"),
+                            Con_TMAX=("TMAX", lambda x: x.notnull().sum()),
+                            Con_TMIN=("TMIN", lambda x: x.notnull().sum()),
+                            Con_Lluvia=("LLUVIA_ACUM", lambda x: x.notnull().sum()),
+                        )
+                        .reset_index()
+                    )
+                    st.dataframe(resumen_fechas, use_container_width=True)
 
                 # PASO 5: REPORTE CONTROL DE CALIDAD
                 st.subheader("🚨 Reporte Detallado de Control de Calidad")
